@@ -291,7 +291,7 @@ const OEMPartsApp: React.FC = () => {
               <div className="text-center mb-8">
                 <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg mb-4 p-2">
                   <img 
-                    src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/sign/assets/Parts_Partner_Logo_Rev1.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yMDYxNTk1OS0wYTk4LTRhZjYtODc1Yy0zOTA2Njg2NGQ1ZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvUGFydHNfUGFydG5lcl9Mb2dvX1JldjEucG5nIiwiaWF0IjoxNzUyNzgyNzMxLCJleHAiOjE5MTA0NjI3MzF9.GzxJU1zNAwsXv04eCXrJqvzh6nlHmeIBXCUCX-fXZK4"
+                    src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/sign/assets/Parts_Partner_Logo_Rev1.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yMDYxNTk1OS0wYTk4LTRhZjYtODc1Yy0zOTA2Njg2NGQ1ZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvUGFydHNfUGFydG5lcl9Mb2dvX1JldjEucG5nIiwiaWF0IjoxNzUyNzgzMjI4LCJleHAiOjE5MTA0NjMyMjh9.Iw-KturDVtOegf7MGlfpKprC5NgKhPts2DBUOZVd-9o"
                     alt="Parts Partner Logo" 
                     className="w-full h-full object-contain"
                   />
@@ -573,7 +573,7 @@ const OEMPartsApp: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-xl shadow-lg p-1">
                 <img 
-                  src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/sign/assets/Parts_Partner_Logo_Rev1.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yMDYxNTk1OS0wYTk4LTRhZjYtODc1Yy0zOTA2Njg2NGQ1ZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvUGFydHNfUGFydG5lcl9Mb2dvX1JldjEucG5nIiwiaWF0IjoxNzUyNzgyNzMxLCJleHAiOjE5MTA0NjI3MzF9.GzxJU1zNAwsXv04eCXrJqvzh6nlHmeIBXCUCX-fXZK4"
+                  src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/sign/assets/Parts_Partner_Logo_Rev1.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yMDYxNTk1OS0wYTk4LTRhZjYtODc1Yy0zOTA2Njg2NGQ1ZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvUGFydHNfUGFydG5lcl9Mb2dvX1JldjEucG5nIiwiaWF0IjoxNzUyNzgzMjI4LCJleHAiOjE5MTA0NjMyMjh9.Iw-KturDVtOegf7MGlfpKprC5NgKhPts2DBUOZVd-9o"
                   alt="Parts Partner Logo" 
                   className="w-full h-full object-contain"
                 />
