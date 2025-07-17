@@ -14,7 +14,7 @@ exports.handler = async (event, context) => {
     const { formData, csvContent, pdfContent, quoteNumber, timestamp } = JSON.parse(event.body);
 
     // Email configuration using environment variables
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: process.env.EMAIL_USER, // Your Gmail address
