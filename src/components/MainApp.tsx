@@ -16,7 +16,7 @@ import {
 // Import your components
 import PartsSearch from './parts-search-component';
 import CSVImportSystem from './csv_import_system';
-import QuoteSubmission from './email_pdf_system';
+import QuoteSubmission from './QuoteSubmission';
 
 // Supabase configuration
 const SUPABASE_URL = 'https://xarnvryaicseavgnmtjn.supabase.co';
