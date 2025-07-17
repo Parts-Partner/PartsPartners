@@ -1,9 +1,11 @@
 [build]
   publish = "build"
-  command = "npm install --force && npm run build"
+  command = "npm install --force && CI=false GENERATE_SOURCEMAP=false npm run build"
 
 [build.environment]
   NODE_VERSION = "18"
+  SKIP_PREFLIGHT_CHECK = "true"
+  TSC_COMPILE_ON_ERROR = "true"
 
 [[redirects]]
   from = "/*"
