@@ -1,0 +1,9 @@
+{
+  "name": "oem-parts-functions",
+  "version": "1.0.0",
+  "description": "Netlify Functions for OEM Parts App",
+  "main": "index.js",
+  "dependencies": {
+    "nodemailer": "^6.9.1"
+  }
+}
