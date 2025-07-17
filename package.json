@@ -1,7 +1,14 @@
 {
+  "name": "my-oem-app",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test"
+  },
+  "dependencies": {
+    "react": "^18.x.x",
+    "react-dom": "^18.x.x",
+    "@supabase/supabase-js": "^2.x.x",
+    "lucide-react": "^0.x.x"
   }
 }
