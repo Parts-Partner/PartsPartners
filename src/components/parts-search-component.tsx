@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, ShoppingCart } from 'lucide-react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import ProductDetailModal from './ProductDetailModal';
 
 // TypeScript interfaces
 interface Part {
@@ -47,6 +48,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
   const [userDiscount, setUserDiscount] = useState<number>(0);
 
   // Create a data URL for placeholder image
+  const [selectedPart, setSelectedPart] = useState<Part | null>(null);
   const createPlaceholderImage = (text: string): string => {
     const canvas = document.createElement('canvas');
     canvas.width = 200;
@@ -656,10 +658,21 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = '#2563eb';
                 }}
+                
               >
                 Clear All Filters
               </button>
             </div>
+            {selectedPart && (
+              <ProductDetailModal
+                part={selectedPart}
+                userDiscount={userDiscount}
+                onClose={() => setSelectedPart(null)}
+                onAddToCart={onAddToCart}
+                isInCart={isInCart(selectedPart.id)}
+                cartQuantity={getCartQuantity(selectedPart.id)}
+              />
+            )}
           </div>
         )}
       </div>
