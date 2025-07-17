@@ -27,7 +27,7 @@ exports.handler = async (event, context) => {
     
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #ef4444 0%, #f97316 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+        <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
           <h2 style="margin: 0; font-size: 24px;">New Quote Request</h2>
           <p style="margin: 5px 0 0 0; opacity: 0.9;">Quote Number: ${quoteNumber}</p>
         </div>

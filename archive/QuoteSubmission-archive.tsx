@@ -151,7 +151,7 @@ const QuoteSubmission: React.FC<QuoteSubmissionProps> = ({
     </head>
     <body>
       <div class="header">
-        <div class="company-name">Parts Partner</div>
+        <div class="company-name">OEM Parts Co.</div>
         <div class="quote-title">PRICE QUOTE</div>
       </div>
       

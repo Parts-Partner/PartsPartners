@@ -16,7 +16,7 @@ import {
 // Import your components
 import PartsSearch from './parts-search-component';
 import CSVImportSystem from './csv_import_system';
-import QuoteSubmission from './email_pdf_system';
+import QuoteSubmission from './QuoteSubmission';
 
 // Supabase configuration
 const SUPABASE_URL = 'https://xarnvryaicseavgnmtjn.supabase.co';
@@ -289,14 +289,10 @@ const OEMPartsApp: React.FC = () => {
             <div className="relative z-10">
               {/* Logo and title */}
               <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg mb-4 p-2">
-                  <img 
-                    src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/sign/assets/Parts_Partner_Logo_Rev1.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yMDYxNTk1OS0wYTk4LTRhZjYtODc1Yy0zOTA2Njg2NGQ1ZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvUGFydHNfUGFydG5lcl9Mb2dvX1JldjEucG5nIiwiaWF0IjoxNzUyNzgyNzMxLCJleHAiOjE5MTA0NjI3MzF9.GzxJU1zNAwsXv04eCXrJqvzh6nlHmeIBXCUCX-fXZK4"
-                    alt="Parts Partner Logo" 
-                    className="w-full h-full object-contain"
-                  />
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg mb-4">
+                  <Package className="w-8 h-8 text-white" />
                 </div>
-                <h1 className="text-3xl font-bold text-white mb-2">Parts Partner</h1>
+                <h1 className="text-3xl font-bold text-white mb-2">OEM Parts</h1>
                 <p className="text-white/70 text-sm">Professional parts distribution system</p>
               </div>
 
@@ -571,15 +567,11 @@ const OEMPartsApp: React.FC = () => {
           {/* Logo */}
           <div className="flex items-center">
             <div className="flex items-center gap-3">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-xl shadow-lg p-1">
-                <img 
-                  src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/sign/assets/Parts_Partner_Logo_Rev1.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yMDYxNTk1OS0wYTk4LTRhZjYtODc1Yy0zOTA2Njg2NGQ1ZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvUGFydHNfUGFydG5lcl9Mb2dvX1JldjEucG5nIiwiaWF0IjoxNzUyNzgyNzMxLCJleHAiOjE5MTA0NjI3MzF9.GzxJU1zNAwsXv04eCXrJqvzh6nlHmeIBXCUCX-fXZK4"
-                  alt="Parts Partner Logo" 
-                  className="w-full h-full object-contain"
-                />
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl shadow-lg">
+                <Package className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Parts Partner</h1>
+                <h1 className="text-2xl font-bold text-white">OEM Parts</h1>
                 <p className="text-xs text-blue-200">Professional Distribution</p>
               </div>
             </div>
