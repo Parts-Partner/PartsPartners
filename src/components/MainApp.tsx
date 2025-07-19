@@ -564,53 +564,178 @@ const OEMPartsApp: React.FC = () => {
   };
 
   // Main navigation
-  const Navigation: React.FC = () => (
-    <nav className="bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 shadow-2xl border-b border-white/10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
-          {/* Logo */}
-          <div className="flex items-center">
-            <div className="flex items-center gap-3">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-xl shadow-lg p-1">
-                <img 
-                  src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/public/assets/Parts_Partner_Logo_Rev1.png"
-                  alt="Parts Partner Logo" 
-                  className="w-full h-full object-contain"
-                />
+
+const Navigation: React.FC = () => (
+  <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="flex justify-between items-center h-36">
+        {/* Logo Section */}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
+            {/* Logo Container */}
+            <div className="flex items-center justify-center h-32 w-auto">
+              <img 
+                src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/public/assets//Logo_Rev1.png"
+                alt="Parts Partner" 
+                className="h-full w-auto object-contain"
+              />
+            </div>
+            
+            {/* Brand Text */}
+            <div className="hidden sm:block">
+              <h1 className="text-4xl font-bold text-gray-900 leading-tight font-bold">Parts Partner</h1>
+              <p className="text-sm text-gray-600 font-medium">Right Part. Right Now.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop Navigation */}
+        <div className="hidden lg:flex items-center space-x-1">
+          <button
+            onClick={() => setActivePage('search')}
+            className={`group flex items-center gap-2 px-4 py-2.5 rounded-lg text-lg font-medium transition-all duration-200 ${
+              activePage === 'search'
+                ? 'bg-blue-50 text-grey-700 border border-blue-200 shadow-sm'
+                : 'text-gray-700 hover:text-blue-700 hover:bg-gray-50 border border-transparent'
+            }`}
+          >
+            <Search size={16} className="group-hover:scale-110 transition-transform" />
+            Search Parts
+          </button>
+
+          <button
+            onClick={() => setActivePage('cart')}
+            className={`group flex items-center gap-2 px-4 py-2.5 rounded-lg text-lg font-medium transition-all duration-200 relative ${
+              activePage === 'cart'
+                ? 'bg-blue-50 text-grey-700 border border-blue-200 shadow-sm'
+                : 'text-gray-700 hover:text-blue-700 hover:bg-gray-50 border border-transparent'
+            }`}
+          >
+            <ShoppingCart size={16} className="group-hover:scale-110 transition-transform" />
+            Cart
+            {cartItemCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium shadow-lg">
+                {cartItemCount}
+              </span>
+            )}
+          </button>
+
+          {userProfile?.user_type === 'admin' && (
+            <button
+              onClick={() => setActivePage('admin')}
+              className={`group flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                activePage === 'admin'
+                  ? 'bg-purple-50 text-purple-700 border border-purple-200 shadow-sm'
+                  : 'text-gray-700 hover:text-purple-700 hover:bg-purple-50 border border-transparent'
+              }`}
+            >
+              <Upload size={16} className="group-hover:scale-110 transition-transform" />
+              Admin
+              <span className="ml-1 px-2 py-0.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs rounded-full font-medium shadow-sm">
+                ADMIN
+              </span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setActivePage('profile')}
+            className={`group flex items-center gap-2 px-4 py-2.5 rounded-lg text-lg font-medium transition-all duration-200 ${
+              activePage === 'profile'
+                ? 'bg-blue-50 text-grey-700 border border-blue-200 shadow-sm'
+                : 'text-gray-700 hover:text-blue-700 hover:bg-gray-50 border border-transparent'
+            }`}
+          >
+            <User size={16} className="group-hover:scale-110 transition-transform" />
+            Profile
+          </button>
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-gray-300 mx-3"></div>
+
+          {/* User Info */}
+          <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+              <User size={14} className="text-white" />
+            </div>
+            <div className="hidden xl:block text-sm">
+              <div className="font-medium text-gray-900 leading-tight">
+                {userProfile?.full_name || 'User'}
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Parts Partner</h1>
-                <p className="text-xs text-blue-200">Professional Distribution</p>
+              <div className="text-gray-600 text-xs">
+                {userProfile?.discount_percentage}% discount
               </div>
             </div>
           </div>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-2">
+          {/* Logout Button */}
+          <button
+            onClick={handleLogout}
+            className="group flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent transition-all duration-200"
+          >
+            <LogOut size={16} className="group-hover:scale-110 transition-transform" />
+            <span className="hidden xl:inline">Logout</span>
+          </button>
+        </div>
+
+        {/* Mobile/Tablet Navigation */}
+        <div className="lg:hidden flex items-center gap-3">
+          {/* Cart Badge for Mobile */}
+          <button
+            onClick={() => setActivePage('cart')}
+            className="relative p-2 text-gray-700 hover:text-blue-700 hover:bg-gray-50 rounded-lg transition-all duration-200"
+          >
+            <ShoppingCart size={20} />
+            {cartItemCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
+                {cartItemCount}
+              </span>
+            )}
+          </button>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 text-gray-700 hover:text-blue-700 hover:bg-gray-50 rounded-lg transition-all duration-200 border border-gray-200"
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Navigation Menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden border-t border-gray-200 bg-white">
+          <div className="px-4 py-3 space-y-1">
             <button
-              onClick={() => setActivePage('search')}
-              className={`group flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+              onClick={() => {
+                setActivePage('search');
+                setMobileMenuOpen(false);
+              }}
+              className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                 activePage === 'search'
-                  ? 'bg-white/20 text-white shadow-lg backdrop-blur-sm border border-white/30'
-                  : 'text-blue-200 hover:text-white hover:bg-white/10'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'text-gray-700 hover:text-blue-700 hover:bg-gray-50'
               }`}
             >
-              <Search size={16} className="group-hover:scale-110 transition-transform" />
+              <Search size={18} />
               Search Parts
             </button>
-
+            
             <button
-              onClick={() => setActivePage('cart')}
-              className={`group flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 relative ${
+              onClick={() => {
+                setActivePage('cart');
+                setMobileMenuOpen(false);
+              }}
+              className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                 activePage === 'cart'
-                  ? 'bg-white/20 text-white shadow-lg backdrop-blur-sm border border-white/30'
-                  : 'text-blue-200 hover:text-white hover:bg-white/10'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'text-gray-700 hover:text-blue-700 hover:bg-gray-50'
               }`}
             >
-              <ShoppingCart size={16} className="group-hover:scale-110 transition-transform" />
+              <ShoppingCart size={18} />
               Cart
               {cartItemCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center shadow-lg animate-pulse">
+                <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
                   {cartItemCount}
                 </span>
               )}
@@ -618,139 +743,70 @@ const OEMPartsApp: React.FC = () => {
 
             {userProfile?.user_type === 'admin' && (
               <button
-                onClick={() => setActivePage('admin')}
-                className={`group flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                onClick={() => {
+                  setActivePage('admin');
+                  setMobileMenuOpen(false);
+                }}
+                className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activePage === 'admin'
-                    ? 'bg-white/20 text-white shadow-lg backdrop-blur-sm border border-white/30'
-                    : 'text-blue-200 hover:text-white hover:bg-white/10'
+                    ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                    : 'text-gray-700 hover:text-purple-700 hover:bg-purple-50'
                 }`}
               >
-                <Upload size={16} className="group-hover:scale-110 transition-transform" />
-                Admin
-                <span className="px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs rounded-full">
-                  PRO
+                <Upload size={18} />
+                Admin Panel
+                <span className="ml-auto px-2 py-0.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs rounded-full font-medium">
+                  ADMIN
                 </span>
               </button>
             )}
 
             <button
-              onClick={() => setActivePage('profile')}
-              className={`group flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+              onClick={() => {
+                setActivePage('profile');
+                setMobileMenuOpen(false);
+              }}
+              className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                 activePage === 'profile'
-                  ? 'bg-white/20 text-white shadow-lg backdrop-blur-sm border border-white/30'
-                  : 'text-blue-200 hover:text-white hover:bg-white/10'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'text-gray-700 hover:text-blue-700 hover:bg-gray-50'
               }`}
             >
-              <User size={16} className="group-hover:scale-110 transition-transform" />
+              <User size={18} />
               Profile
             </button>
 
-            <div className="h-8 w-px bg-white/20 mx-2"></div>
+            {/* User Info Section */}
+            <div className="px-4 py-3 bg-gray-50 rounded-lg border border-gray-200 mt-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                  <User size={16} className="text-white" />
+                </div>
+                <div>
+                  <div className="font-medium text-gray-900 text-sm">
+                    {userProfile?.full_name || 'User'}
+                  </div>
+                  <div className="text-gray-600 text-xs">
+                    {userProfile?.discount_percentage}% discount • {userProfile?.user_type}
+                  </div>
+                </div>
+              </div>
+            </div>
 
+            {/* Logout */}
             <button
               onClick={handleLogout}
-              className="group flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-red-200 hover:text-red-100 hover:bg-red-500/20 transition-all duration-200"
+              className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200 mt-2"
             >
-              <LogOut size={16} className="group-hover:scale-110 transition-transform" />
+              <LogOut size={18} />
               Logout
             </button>
           </div>
-
-          {/* Mobile menu button */}
-          <div className="md:hidden">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="text-blue-200 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-all duration-200"
-            >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          </div>
         </div>
-
-        {/* Mobile Navigation */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-white/10 backdrop-blur-sm">
-            <div className="px-2 pt-2 pb-3 space-y-1">
-              <button
-                onClick={() => {
-                  setActivePage('search');
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl text-base font-medium transition-all duration-200 ${
-                  activePage === 'search'
-                    ? 'bg-white/20 text-white'
-                    : 'text-blue-200 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                <Search size={20} />
-                Search Parts
-              </button>
-              <button
-                onClick={() => {
-                  setActivePage('cart');
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl text-base font-medium transition-all duration-200 relative ${
-                  activePage === 'cart'
-                    ? 'bg-white/20 text-white'
-                    : 'text-blue-200 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                <ShoppingCart size={20} />
-                Cart
-                {cartItemCount > 0 && (
-                  <span className="ml-auto bg-gradient-to-r from-red-500 to-pink-500 text-white text-sm rounded-full w-6 h-6 flex items-center justify-center">
-                    {cartItemCount}
-                  </span>
-                )}
-              </button>
-              {userProfile?.user_type === 'admin' && (
-                <button
-                  onClick={() => {
-                    setActivePage('admin');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl text-base font-medium transition-all duration-200 ${
-                    activePage === 'admin'
-                      ? 'bg-white/20 text-white'
-                      : 'text-blue-200 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  <Upload size={20} />
-                  Admin
-                  <span className="ml-auto px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs rounded-full">
-                    PRO
-                  </span>
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  setActivePage('profile');
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl text-base font-medium transition-all duration-200 ${
-                  activePage === 'profile'
-                    ? 'bg-white/20 text-white'
-                    : 'text-blue-200 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                <User size={20} />
-                Profile
-              </button>
-              <div className="h-px bg-white/20 my-2"></div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl text-base font-medium text-red-200 hover:text-red-100 hover:bg-red-500/20 transition-all duration-200"
-              >
-                <LogOut size={20} />
-                Logout
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </nav>
-  );
+      )}
+    </div>
+  </nav>
+);
 
   // Render login page if not authenticated
   if (!user) {
@@ -759,14 +815,11 @@ const OEMPartsApp: React.FC = () => {
 
   // Main app layout
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+    <div className="min-h-screen bg-white-50">
       <Navigation />
       
       <main className="relative">
-        {/* Background effects for main content */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-purple-600/5 to-pink-600/5 pointer-events-none"></div>
-        
-        <div className="relative z-10 py-8">
+        <div className="py-8">
           {activePage === 'search' && (
             <PartsSearch 
               onAddToCart={handleAddToCart}
