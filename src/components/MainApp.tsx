@@ -19,8 +19,8 @@ import CSVImportSystem from './csv_import_system';
 import QuoteSubmission from './QuoteSubmission';
 
 // Supabase configuration
-const SUPABASE_URL = 'https://xarnvryaicseavgnmtjn.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhcm52cnlhaWNzZWF2Z25tdGpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2NjU3NzIsImV4cCI6MjA2ODI0MTc3Mn0.KD5zIW2WjE14Q4UcYIRc1rt5wtAweqMefIEgqHm1qtw';
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
