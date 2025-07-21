@@ -1,17 +1,27 @@
 import React, { useState } from 'react';
 import { Send, FileText, Mail, User, Building, Phone, MessageSquare, DollarSign, Package } from 'lucide-react';
 
-// TypeScript interfaces
+// TypeScript interfaces - Updated to match new database structure
+interface Manufacturer {
+  id: string;
+  make: string;
+  manufacturer: string;
+}
+
 interface Part {
   id: string;
   part_number: string;
-  description: string;
-  manufacturer: string;
+  part_description: string; // Updated from 'description'
   category: string;
   list_price: string | number;
   compatible_models: string[] | string;
   image_url?: string;
   in_stock: boolean;
+  created_at?: string;
+  updated_at?: string;
+  manufacturer_id: string; // New field
+  make_part_number?: string; // New field
+  manufacturer?: Manufacturer; // Joined manufacturer data
 }
 
 interface CartItem extends Part {
@@ -79,6 +89,8 @@ const QuoteSubmission: React.FC<QuoteSubmissionProps> = ({
       'Part Number',
       'Description',
       'Manufacturer',
+      'Make',
+      'Make Part Number',
       'Category',
       'Quantity',
       'Unit Price',
@@ -89,8 +101,10 @@ const QuoteSubmission: React.FC<QuoteSubmissionProps> = ({
     
     const rows = cartItems.map(item => [
       item.part_number,
-      `"${item.description}"`,
-      item.manufacturer,
+      `"${item.part_description}"`,
+      item.manufacturer?.manufacturer || 'N/A',
+      item.manufacturer?.make || 'N/A',
+      item.make_part_number || 'N/A',
       item.category,
       item.quantity.toString(),
       `$${item.unit_price.toFixed(2)}`,
@@ -178,6 +192,7 @@ const QuoteSubmission: React.FC<QuoteSubmissionProps> = ({
             <th>Part Number</th>
             <th>Description</th>
             <th>Manufacturer</th>
+            <th>Make</th>
             <th>Qty</th>
             <th>Unit Price</th>
             <th>Discounted Price</th>
@@ -188,8 +203,9 @@ const QuoteSubmission: React.FC<QuoteSubmissionProps> = ({
           ${cartItems.map(item => `
             <tr>
               <td>${item.part_number}</td>
-              <td>${item.description}</td>
-              <td>${item.manufacturer}</td>
+              <td>${item.part_description}</td>
+              <td>${item.manufacturer?.manufacturer || 'N/A'}</td>
+              <td>${item.manufacturer?.make || 'N/A'}</td>
               <td>${item.quantity}</td>
               <td>$${item.unit_price.toFixed(2)}</td>
               <td>$${item.discounted_price.toFixed(2)}</td>
@@ -477,14 +493,16 @@ const QuoteSubmission: React.FC<QuoteSubmissionProps> = ({
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900">{item.part_number}</h4>
-                      <p className="text-sm text-gray-600 line-clamp-2">{item.description}</p>
+                      <p className="text-sm text-gray-600 line-clamp-2">{item.part_description}</p>
                     </div>
                     <div className="text-right ml-4">
                       <div className="text-sm text-gray-500">Qty: {item.quantity}</div>
                     </div>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">{item.manufacturer}</span>
+                    <span className="text-gray-600">
+                      {item.manufacturer?.manufacturer || 'N/A'} - {item.manufacturer?.make || 'N/A'}
+                    </span>
                     <div className="text-right">
                       {userDiscount > 0 ? (
                         <div>

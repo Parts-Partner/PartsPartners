@@ -41,10 +41,7 @@ interface PartsSearchProps {
 }
 
 // Initialize Supabase client
-const SUPABASE_URL = 'https://xarnvryaicseavgnmtjn.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhcm52cnlhaWNzZWF2Z25tdGpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2NjU3NzIsImV4cCI6MjA2ODI0MTc3Mn0.KD5zIW2WjE14Q4UcYIRc1rt5wtAweqMefIEgqHm1qtw';
-
-const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { supabase } from '../lib/supabase';
 
 const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }) => {
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -54,38 +51,8 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
   const [selectedManufacturer, setSelectedManufacturer] = useState<string>('all');
   const [loading, setLoading] = useState<boolean>(false);
   const [userDiscount, setUserDiscount] = useState<number>(0);
-  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
-  const [selectedPart, setSelectedPart] = useState<Part | null>(null);
 
-  // Use local placeholder image
   const placeholderImageUrl = '/No_Product_Image_Filler.png';
-
-  // Fetch manufacturers from Supabase
-  const fetchManufacturers = async (): Promise<void> => {
-    try {
-      console.log('Fetching manufacturers...');
-      
-      const { data, error } = await supabase
-        .from('manufacturers')  // Back to plural
-        .select('*')
-        .order('manufacturer');
-
-      console.log('Manufacturers response:', { data, error });
-      
-      if (error) {
-        console.error('Supabase error details:', error);
-        console.error('Error code:', error.code);
-        console.error('Error message:', error.message);
-        return;
-      }
-
-      console.log('Setting manufacturers:', data);
-      console.log('Number of manufacturers found:', data?.length || 0);
-      setManufacturers(data || []);
-    } catch (error) {
-      console.error('Catch block error:', error);
-    }
-  };
 
   // Fetch parts from Supabase with manufacturer data
   const fetchParts = async (): Promise<void> => {
@@ -182,7 +149,6 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
   useEffect(() => {
     const loadData = async () => {
       await fetchParts();
-      await fetchManufacturers();
       setTimeout(() => {
         fetchUserDiscount();
       }, 500);
@@ -221,7 +187,8 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
 
     if (selectedManufacturer !== 'all') {
       filtered = filtered.filter((part: Part) => 
-        part.manufacturer?.id === selectedManufacturer
+        part.manufacturer?.manufacturer === selectedManufacturer ||
+        part.manufacturer?.make === selectedManufacturer
       );
     }
 
@@ -236,6 +203,19 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
 
   const getUniqueCategories = (): string[] => {
     return Array.from(new Set(parts.map((part: Part) => part.category)));
+  };
+
+  const getUniqueManufacturers = (): string[] => {
+    const manufacturers = new Set<string>();
+    parts.forEach((part: Part) => {
+      if (part.manufacturer?.manufacturer) {
+        manufacturers.add(part.manufacturer.manufacturer);
+      }
+      if (part.manufacturer?.make) {
+        manufacturers.add(part.manufacturer.make);
+      }
+    });
+    return Array.from(manufacturers);
   };
 
   const isInCart = (partId: string): boolean => {
@@ -299,9 +279,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
           border: '1px solid #e5e7eb',
           padding: '32px',
-          marginBottom: '32px',
-          position: 'relative',
-          zIndex: 10
+          marginBottom: '32px'
         }}>
           <div style={{
             display: 'flex',
@@ -350,7 +328,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
             </div>
 
             {/* Category Filter */}
-            <div style={{ minWidth: '224px', position: 'relative' }}>
+            <div style={{ minWidth: '224px' }}>
               <select
                 value={selectedCategory}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedCategory(e.target.value)}
@@ -363,9 +341,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
                   color: '#111827',
                   fontSize: '16px',
                   outline: 'none',
-                  cursor: 'pointer',
-                  position: 'relative',
-                  zIndex: 1000
+                  cursor: 'pointer'
                 }}
               >
                 <option value="all">All Categories</option>
@@ -376,7 +352,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
             </div>
 
             {/* Manufacturer Filter */}
-            <div style={{ minWidth: '224px', position: 'relative' }}>
+            <div style={{ minWidth: '224px' }}>
               <select
                 value={selectedManufacturer}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedManufacturer(e.target.value)}
@@ -389,16 +365,12 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
                   color: '#111827',
                   fontSize: '16px',
                   outline: 'none',
-                  cursor: 'pointer',
-                  position: 'relative',
-                  zIndex: 1000
+                  cursor: 'pointer'
                 }}
               >
                 <option value="all">All Manufacturers</option>
-                {manufacturers.map((manufacturer: Manufacturer) => (
-                  <option key={manufacturer.id} value={manufacturer.id}>
-                    {manufacturer.manufacturer}
-                  </option>
+                {getUniqueManufacturers().map((manufacturer: string) => (
+                  <option key={manufacturer} value={manufacturer}>{manufacturer}</option>
                 ))}
               </select>
             </div>
@@ -437,7 +409,6 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
             return (
               <div 
                 key={part.id} 
-                onClick={() => setSelectedPart(part)}
                 style={{
                   backgroundColor: 'white',
                   borderRadius: '12px',
@@ -536,7 +507,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
                   {/* Details */}
                   <div style={{ marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: '500', color: '#374151', width: '80px' }}>OEM:</span>
+                      <span style={{ fontWeight: '500', color: '#374151', width: '80px' }}>Brand:</span>
                       <span style={{ color: '#6b7280' }}>{part.manufacturer?.manufacturer || 'N/A'}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', marginBottom: '4px' }}>
@@ -639,7 +610,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
                     ) : (
                       <>
                         <Plus style={{ width: '20px', height: '20px' }} />
-                        Add to PO
+                        Add to Quote
                       </>
                     )}
                   </button>
@@ -708,138 +679,6 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
           </div>
         )}
       </div>
-      
-      {/* Product Detail Modal */}
-      {selectedPart && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white">{selectedPart.part_number}</h2>
-                <button
-                  onClick={() => setSelectedPart(null)}
-                  className="text-white hover:text-gray-200 transition-colors text-2xl"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Product Image */}
-                <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-                  <img
-                    src={selectedPart.image_url || placeholderImageUrl}
-                    alt={selectedPart.part_description}
-                    className="w-full h-full object-cover"
-                    onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = placeholderImageUrl;
-                    }}
-                  />
-                </div>
-
-                {/* Product Details */}
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2">{selectedPart.part_number}</h3>
-                    <p className="text-gray-600 text-lg">{selectedPart.part_description}</p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="font-medium text-gray-700">OEM:</span>
-                      <span className="text-gray-900">{selectedPart.manufacturer?.manufacturer || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-gray-700">Make:</span>
-                      <span className="text-gray-900">{selectedPart.manufacturer?.make || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-gray-700">Category:</span>
-                      <span className="text-gray-900">{selectedPart.category}</span>
-                    </div>
-                    {selectedPart.make_part_number && (
-                      <div className="flex justify-between">
-                        <span className="font-medium text-gray-700">Make P/N:</span>
-                        <span className="text-gray-900">{selectedPart.make_part_number}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="font-medium text-gray-700">Stock Status:</span>
-                      <span className={`font-medium ${selectedPart.in_stock ? 'text-green-600' : 'text-red-600'}`}>
-                        {selectedPart.in_stock ? '✓ In Stock' : '✗ Out of Stock'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Compatible Models */}
-                  <div>
-                    <h4 className="font-medium text-gray-700 mb-2">Compatible Models:</h4>
-                    <p className="text-gray-900 text-sm">
-                      {Array.isArray(selectedPart.compatible_models) 
-                        ? selectedPart.compatible_models.join(', ')
-                        : selectedPart.compatible_models || 'Universal'}
-                    </p>
-                  </div>
-
-                  {/* Pricing */}
-                  <div className="border-t pt-4">
-                    {userDiscount > 0 ? (
-                      <div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-2xl font-bold text-green-600">
-                            ${calculateDiscountedPrice(selectedPart.list_price)}
-                          </span>
-                          <span className="text-lg text-gray-500 line-through">
-                            ${typeof selectedPart.list_price === 'string' ? selectedPart.list_price : selectedPart.list_price.toString()}
-                          </span>
-                        </div>
-                        <div className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
-                          {userDiscount}% discount applied
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-2xl font-bold text-gray-900">
-                        ${typeof selectedPart.list_price === 'string' ? selectedPart.list_price : selectedPart.list_price.toString()}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Add to Cart Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddToCart(selectedPart);
-                    }}
-                    disabled={!selectedPart.in_stock}
-                    className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
-                      selectedPart.in_stock
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    {isInCart(selectedPart.id) ? (
-                      <>
-                        <ShoppingCart className="w-5 h-5" />
-                        In Cart ({getCartQuantity(selectedPart.id)})
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-5 h-5" />
-                        Add to PO
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
