@@ -60,22 +60,44 @@ const CreditCardForm: React.FC<{
     setProcessing(true);
 
     try {
-      // Create payment method
-      const { error: methodError, paymentMethod } = await stripe.createPaymentMethod({
-        type: 'card',
-        card: cardElement,
+      // Step 1: Create Payment Intent on backend
+      const response = await fetch('/.netlify/functions/create-payment-intent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: amount,
+          currency: 'usd',
+          metadata: {
+            source: 'parts_partner_app',
+            timestamp: new Date().toISOString(),
+          },
+        }),
       });
 
-      if (methodError) {
-        throw new Error(methodError.message);
+      if (!response.ok) {
+        throw new Error('Failed to create payment intent');
       }
 
-      // For demo purposes, we'll simulate payment success
-      // In production, you'd call your backend to create PaymentIntent
-      setTimeout(() => {
-        onSuccess('pi_demo_' + Date.now());
-        setProcessing(false);
-      }, 2000);
+      const { clientSecret, paymentIntentId } = await response.json();
+
+      // Step 2: Confirm payment with Stripe
+      const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: cardElement,
+        },
+      });
+
+      if (confirmError) {
+        throw new Error(confirmError.message || 'Payment confirmation failed');
+      }
+
+      if (paymentIntent?.status === 'succeeded') {
+        onSuccess(paymentIntent.id);
+      } else {
+        throw new Error('Payment was not successful');
+      }
 
     } catch (error: any) {
       setProcessing(false);
@@ -103,9 +125,25 @@ const CreditCardForm: React.FC<{
                 },
                 padding: '12px',
               },
+              invalid: {
+                color: '#9e2146',
+              },
             },
+            hidePostalCode: false,
           }}
         />
+      </div>
+
+      <div style={{
+        fontSize: '0.875rem',
+        color: '#6b7280',
+        marginBottom: '16px',
+        padding: '12px',
+        backgroundColor: '#f0f9ff',
+        borderRadius: '8px',
+        border: '1px solid #bae6fd'
+      }}>
+        💳 <strong>Test Cards:</strong> Use 4242 4242 4242 4242 with any future date and any 3-digit CVC
       </div>
 
       <button
