@@ -16,7 +16,7 @@ import {
 // Import your components
 import PartsSearch from './parts-search-component';
 import CSVImportSystem from './csv_import_system';
-import QuoteSubmission from './QuoteSubmission';
+import PaymentFlow from './PaymentFlow';
 
 // Supabase configuration
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL!;
@@ -80,7 +80,7 @@ const OEMPartsApp: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [activePage, setActivePage] = useState<ActivePage>('search');
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [showQuoteSubmission, setShowQuoteSubmission] = useState(false);
+  const [showPaymentFlow, setShowPaymentFlow] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -243,9 +243,9 @@ const OEMPartsApp: React.FC = () => {
     setCartItems(prev => prev.filter(item => item.id !== partId));
   };
 
-  const handleQuoteSubmitSuccess = () => {
+  const handlePaymentSuccess = () => {
     setCartItems([]);
-    setShowQuoteSubmission(false);
+    setShowPaymentFlow(false);
     setActivePage('search');
   };
 
@@ -807,7 +807,7 @@ const OEMPartsApp: React.FC = () => {
                     </p>
                   </div>
                   <button
-                    onClick={() => setShowQuoteSubmission(true)}
+                    onClick={() => setShowPaymentFlow(true)}
                     style={{
                       background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                       color: 'white',
@@ -1781,13 +1781,15 @@ const OEMPartsApp: React.FC = () => {
         </div>
       </main>
 
-      {/* Quote Submission Modal */}
-      {showQuoteSubmission && (
-        <QuoteSubmission
+      {/* Payment Flow Modal */}
+      {showPaymentFlow && (
+        <PaymentFlow
           cartItems={cartItems}
+          cartTotal={cartTotal}
           userDiscount={userProfile?.discount_percentage || 0}
-          onSubmitSuccess={handleQuoteSubmitSuccess}
-          onClose={() => setShowQuoteSubmission(false)}
+          onSuccess={handlePaymentSuccess}
+          onClose={() => setShowPaymentFlow(false)}
+          userProfile={userProfile}
         />
       )}
     </div>

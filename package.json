@@ -6,6 +6,8 @@
     "test": "react-scripts test"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^3.7.0",
+    "@stripe/stripe-js": "^7.5.0",
     "@supabase/supabase-js": "^2.x.x",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
