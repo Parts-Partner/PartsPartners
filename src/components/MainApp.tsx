@@ -17,6 +17,7 @@ import {
 import PartsSearch from './parts-search-component';
 import CSVImportSystem from './csv_import_system';
 import PaymentFlow from './PaymentFlow';
+import TechFinder from './GoogleMapsTechFinder';
 
 // Supabase configuration
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL!;
@@ -83,6 +84,9 @@ const OEMPartsApp: React.FC = () => {
   const [showPaymentFlow, setShowPaymentFlow] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showTechFinder, setShowTechFinder] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
 
   // Auth state management
   useEffect(() => {
@@ -104,7 +108,6 @@ const OEMPartsApp: React.FC = () => {
         } else {
           setUser(null);
           setUserProfile(null);
-          setActivePage('login');
         }
       }
     );
@@ -185,7 +188,7 @@ const OEMPartsApp: React.FC = () => {
         console.error('Logout error:', error);
       }
       setCartItems([]);
-      setActivePage('login');
+      setActivePage('search');
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -247,6 +250,14 @@ const OEMPartsApp: React.FC = () => {
     setCartItems([]);
     setShowPaymentFlow(false);
     setActivePage('search');
+  };
+
+  const handleCartSubmit = () => {
+    if (!user) {
+      setShowLoginModal(true);
+    } else {
+      setShowPaymentFlow(true);
+    }
   };
 
   const cartTotal = cartItems.reduce((sum, item) => sum + item.line_total, 0);
@@ -318,16 +329,25 @@ const OEMPartsApp: React.FC = () => {
               {/* Tab switcher */}
               <div className="flex rounded-xl bg-white/10 p-1 mb-6 backdrop-blur-sm">
                 <button
-                  type="button"
-                  onClick={() => setIsLogin(true)}
-                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isLogin
-                      ? 'bg-white text-gray-900 shadow-lg transform scale-105'
-                      : 'text-white/80 hover:text-white hover:bg-white/5'
-                  }`}
+                  onClick={() => {
+                    setShowLoginModal(false);
+                    setActivePage('login'); // This will show your existing login page
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
                 >
                   Sign In
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setIsLogin(false)}
@@ -807,7 +827,7 @@ const OEMPartsApp: React.FC = () => {
                     </p>
                   </div>
                   <button
-                    onClick={() => setShowPaymentFlow(true)}
+                    onClick={handleCartSubmit}
                     style={{
                       background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                       color: 'white',
@@ -830,7 +850,7 @@ const OEMPartsApp: React.FC = () => {
                       e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
                     }}
                   >
-                    Submit Purchase Order
+                    {user ? 'Submit Purchase Order' : 'Login to Complete Order'}
                   </button>
                 </div>
               </div>
@@ -1376,7 +1396,7 @@ const OEMPartsApp: React.FC = () => {
               {/* Brand Text */}
               <div className="hidden sm:block">
                 <h1 className="text-4xl font-bold text-gray-900 leading-tight font-bold">Parts Partner</h1>
-                <p className="text-sm text-gray-600 font-medium">Right Part. Right Now.</p>
+                <p className="text-sm text-gray-600 font-medium">Right Parts. Right Now.</p>
               </div>
             </div>
           </div>
@@ -1750,36 +1770,556 @@ const OEMPartsApp: React.FC = () => {
     </nav>
   );
 
-  // Render login page if not authenticated
-  if (!user) {
-    return <LoginPage />;
-  }
-
   // Main app layout
-  return (
-    <div className="min-h-screen bg-white-50">
-      <Navigation />
+return (
+  <div className="min-h-screen bg-white-50">
+    {/* Modern Header */}
+    <header style={{
+      backgroundColor: 'white',
+      borderBottom: '1px solid #e5e7eb',
+      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+      position: 'sticky',
+      top: 0,
+      zIndex: 40
+    }}>
+      <div style={{
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: '120px'
+      }}>
+    {/* Logo and Brand */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <img 
+        src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/public/assets//Logo_Rev1.png"
+        alt="Parts Partners Logo"
+        style={{
+          height: '100px',
+          width: 'auto',
+          cursor: 'pointer'
+        }}
+        onClick={() => setActivePage('search')}
+      />
       
-      <main className="relative">
-        <div className="py-8">
-          {activePage === 'search' && (
-            <PartsSearch 
-              onAddToCart={handleAddToCart}
-              cartItems={cartItems}
-            />
-          )}
+      <div>
+        <h1 style={{
+          fontSize: '2.24rem',
+          fontWeight: 'bold',
+          color: '#111827',
+          margin: 0,
+          cursor: 'pointer'
+        }}
+        onClick={() => setActivePage('search')}
+        >
+          Parts Partners
+        </h1>
+        <p style={{
+          fontSize: '1.5rem',
+          color: '#6b7280',
+          margin: '-16px 0 0 0'
+        }}>
+          Right Parts. Right Now.
+        </p>
+      </div>
+    </div>
+
+    {/* Right Side Actions */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      {/* Find Tech Button */}
+      <button
+        onClick={() => setShowTechFinder(true)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '8px 16px',
+          background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          fontSize: '0.875rem',
+          fontWeight: '600',
+          cursor: 'pointer'
+        }}
+      >
+        Find Tech
+      </button>
+
+      {/* Cart Button */}
+      <button
+        onClick={() => setActivePage('cart')}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '8px 16px',
+          backgroundColor: 'transparent',
+          color: '#4b5563',
+          border: '2px solid #e5e7eb',
+          borderRadius: '8px',
+          fontSize: '0.875rem',
+          fontWeight: '600',
+          cursor: 'pointer'
+        }}
+      >
+        Cart {cartItemCount > 0 && `(${cartItemCount})`}
+      </button>
+
+      {/* User Authentication Buttons */}
+      {user ? (
+        /* Logged In - Show Profile + Logout */
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={() => setActivePage('profile')}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'transparent',
+              color: '#4b5563',
+              border: '1px solid #e5e7eb',
+              borderRadius: '8px',
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              cursor: 'pointer'
+            }}
+          >
+            Profile
+          </button>
           
-          {activePage === 'cart' && <CartPage />}
-          
-          {activePage === 'admin' && userProfile?.user_type === 'admin' && (
-            <div className="max-w-6xl mx-auto px-4">
-              <CSVImportSystem />
-            </div>
-          )}
-          
-          {activePage === 'profile' && <ProfilePage />}
+          <button
+            onClick={handleLogout}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#fef2f2',
+              color: '#dc2626',
+              border: '1px solid #fecaca',
+              borderRadius: '8px',
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              cursor: 'pointer'
+            }}
+          >
+            Logout
+          </button>
         </div>
-      </main>
+      ) : (
+        /* Not Logged In - Show Login + Register Buttons */
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={() => setShowLoginModal(true)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'transparent',
+              color: '#4b5563',
+              border: '1px solid #e5e7eb',
+              borderRadius: '8px',
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              cursor: 'pointer'
+            }}
+          >
+            Login
+          </button>
+          
+          <button
+            onClick={() => setShowRegisterModal(true)}
+            style={{
+              padding: '8px 16px',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            Register
+          </button>
+        </div>
+      )}
+    </div>
+        </div>
+        </header>
+    
+    <main className="relative">
+      <div className="py-8">
+        {activePage === 'search' && (
+          <PartsSearch 
+            onAddToCart={handleAddToCart}
+            cartItems={cartItems}
+          />
+        )}
+        
+        {activePage === 'cart' && <CartPage />}
+        
+        {activePage === 'admin' && userProfile?.user_type === 'admin' && (
+          <div className="max-w-6xl mx-auto px-4">
+            <CSVImportSystem />
+          </div>
+        )}
+        
+        {activePage === 'profile' && <ProfilePage />}
+      </div>
+    </main>
+
+    {/* Tech Finder Modal */}
+    {showTechFinder && (
+      <TechFinder
+        isOpen={showTechFinder}
+        onClose={() => setShowTechFinder(false)}
+      />
+    )}
+
+    {/* Login Modal */}
+    {showLoginModal && (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        zIndex: 50
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '16px',
+          padding: '32px',
+          maxWidth: '400px',
+          width: '100%',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#111827', margin: 0 }}>
+              Sign In
+            </h2>
+            <button
+              onClick={() => setShowLoginModal(false)}
+              style={{
+                backgroundColor: 'transparent',
+                border: 'none',
+                fontSize: '1.5rem',
+                color: '#6b7280',
+                cursor: 'pointer'
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const email = formData.get('email') as string;
+            const password = formData.get('password') as string;
+            
+            try {
+              await handleLogin(email, password);
+              setShowLoginModal(false);
+              setActivePage('cart');
+            } catch (error: any) {
+              alert('Login failed: ' + error.message);
+            }
+          }}>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '6px' 
+              }}>
+                Email
+              </label>
+              <input
+                type="email"
+                name="email"
+                required
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '1rem',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+              />
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '6px' 
+              }}>
+                Password
+              </label>
+              <input
+                type="password"
+                name="password"
+                required
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '1rem',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+              />
+            </div>
+
+            <button
+              type="submit"
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '1rem',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              Sign In
+            </button>
+          </form>
+        </div>
+      </div>
+    )}
+
+    {/* Register Modal */}
+    {showRegisterModal && (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        zIndex: 50
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '16px',
+          padding: '32px',
+          maxWidth: '450px',
+          width: '100%',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+          maxHeight: '90vh',
+          overflowY: 'auto'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#111827', margin: 0 }}>
+              Create Account
+            </h2>
+            <button
+              onClick={() => setShowRegisterModal(false)}
+              style={{
+                backgroundColor: 'transparent',
+                border: 'none',
+                fontSize: '1.5rem',
+                color: '#6b7280',
+                cursor: 'pointer'
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const email = formData.get('email') as string;
+            const password = formData.get('password') as string;
+            const fullName = formData.get('fullName') as string;
+            const companyName = formData.get('companyName') as string;
+            const phone = formData.get('phone') as string;
+            
+            try {
+              await handleSignup(email, password, fullName);
+              setShowRegisterModal(false);
+              alert('Registration successful! Please check your email to verify your account.');
+            } catch (error: any) {
+              alert('Registration failed: ' + error.message);
+            }
+          }}>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '6px' 
+              }}>
+                Full Name *
+              </label>
+              <input
+                type="text"
+                name="fullName"
+                required
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '1rem',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '6px' 
+              }}>
+                Email *
+              </label>
+              <input
+                type="email"
+                name="email"
+                required
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '1rem',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '6px' 
+              }}>
+                Company Name
+              </label>
+              <input
+                type="text"
+                name="companyName"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '1rem',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '6px' 
+              }}>
+                Phone
+              </label>
+              <input
+                type="tel"
+                name="phone"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '1rem',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+              />
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '6px' 
+              }}>
+                Password *
+              </label>
+              <input
+                type="password"
+                name="password"
+                required
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '1rem',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+              />
+            </div>
+
+            <button
+              type="submit"
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '1rem',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              Create Account
+            </button>
+          </form>
+
+          <p style={{ 
+            fontSize: '0.75rem', 
+            color: '#6b7280', 
+            textAlign: 'center', 
+            marginTop: '16px',
+            lineHeight: '1.4'
+          }}>
+            By creating an account, you agree to our terms of service. You'll receive an email to verify your account.
+          </p>
+        </div>
+      </div>
+    )}
 
       {/* Payment Flow Modal */}
       {showPaymentFlow && (

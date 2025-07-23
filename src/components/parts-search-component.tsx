@@ -260,36 +260,6 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
       minHeight: '100vh', 
       background: 'linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%)'
     }}>
-      {/* Header Section */}
-      <div style={{
-        backgroundColor: 'white',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-        borderBottom: '1px solid #e5e7eb'
-      }}>
-        <div style={{
-          maxWidth: '1280px',
-          margin: '0 auto',
-          padding: '32px 16px',
-          textAlign: 'center'
-        }}>
-          <h1 style={{
-            fontSize: '2.5rem',
-            fontWeight: 'bold',
-            color: '#111827',
-            marginBottom: '12px'
-          }}>
-            OEM Parts Search
-          </h1>
-          <p style={{
-            fontSize: '1.125rem',
-            color: '#6b7280',
-            maxWidth: '512px',
-            margin: '0 auto'
-          }}>
-            Find the right parts for your equipment with our comprehensive inventory
-          </p>
-        </div>
-      </div>
 
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '32px 16px' }}>
         {/* Search and Filters Section */}
@@ -297,7 +267,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
           backgroundColor: 'white',
           borderRadius: '12px',
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-          border: '1px solid #e5e7eb',
+          border: '1px solid #ebe5e5ff',
           padding: '32px',
           marginBottom: '32px',
           position: 'relative',
@@ -328,7 +298,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
                   paddingRight: '16px',
                   paddingTop: '12px',
                   paddingBottom: '12px',
-                  border: '2px solid #e5e7eb',
+                  border: '5px solid #d63838ff',
                   borderRadius: '12px',
                   fontSize: '16px',
                   color: '#111827',
@@ -339,8 +309,8 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [] }
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onFocus={(e) => {
-                  e.target.style.borderColor = '#3b82f6';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  e.target.style.borderColor = '#d63838ff';
+                  e.target.style.boxShadow = '0 0 0 3px #d63838ff';
                 }}
                 onBlur={(e) => {
                   e.target.style.borderColor = '#e5e7eb';
