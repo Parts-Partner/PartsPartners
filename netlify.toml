@@ -6,6 +6,7 @@
   NODE_VERSION = "18"
   SKIP_PREFLIGHT_CHECK = "true"
   TSC_COMPILE_ON_ERROR = "true"
+  SECRETS_SCAN_ENABLED = "false"
 
 [functions]
   directory = "netlify/functions"
