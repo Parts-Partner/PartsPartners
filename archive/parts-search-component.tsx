@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, Minus, ShoppingCart } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, Plus, Minus, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 // TypeScript interfaces
@@ -51,6 +51,9 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
   const [userDiscount, setUserDiscount] = useState<number>(0);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
+  const [totalParts, setTotalParts] = useState<number>(0);
+  const [searchPerformed, setSearchPerformed] = useState<boolean>(false);
+  const [categories, setCategories] = useState<string[]>([]);
 
   // Use local placeholder image
   const placeholderImageUrl = '/No_Product_Image_Filler.png';
@@ -79,12 +82,56 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
     }
   };
 
-  // Fetch parts from Supabase with manufacturer data
-  const fetchParts = async (): Promise<void> => {
+  // Fetch categories from database
+  const fetchCategories = async (): Promise<void> => {
+    try {
+      const { data, error } = await supabase
+        .from('parts')
+        .select('category')
+        .not('category', 'is', null);
+
+      if (error) {
+        console.error('Error fetching categories:', error);
+        return;
+      }
+
+      const uniqueCategories = Array.from(new Set(data?.map(item => item.category).filter(Boolean))) as string[];
+      setCategories(uniqueCategories.sort());
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  // Get total count of parts
+  const fetchTotalPartsCount = async (): Promise<void> => {
+    try {
+      const { count, error } = await supabase
+        .from('parts')
+        .select('*', { count: 'exact', head: true });
+
+      if (error) {
+        console.error('Error fetching parts count:', error);
+        return;
+      }
+
+      setTotalParts(count || 0);
+      console.log('Total parts in database:', count);
+    } catch (error) {
+      console.error('Error fetching parts count:', error);
+    }
+  };
+
+  // Server-side search function using PostgreSQL ilike
+  const performServerSearch = useCallback(async (
+    searchQuery: string,
+    category: string = 'all',
+    manufacturerId: string = 'all'
+  ): Promise<void> => {
     try {
       setLoading(true);
-      
-      const { data, error } = await supabase
+      setSearchPerformed(true);
+
+      let query = supabase
         .from('parts')
         .select(`
           *,
@@ -94,18 +141,37 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
             manufacturer
           )
         `)
+        .limit(1000) // Smart result limiting
         .order('part_number');
 
-      if (error) {
-        console.error('Supabase error:', error);
-        alert('Unable to load parts. Please check your internet connection and try again.');
-        return;
+      // Apply text search across multiple fields using PostgreSQL ilike
+      if (searchQuery.trim()) {
+        const searchLower = searchQuery.toLowerCase().trim();
+        
+        // Search across all relevant fields
+        query = query.or(`
+          part_number.ilike.%${searchLower}%,
+          part_description.ilike.%${searchLower}%,
+          make_part_number.ilike.%${searchLower}%,
+          compatible_models::text.ilike.%${searchLower}%
+        `);
       }
 
-      if (!data || data.length === 0) {
-        console.log('No parts found in database');
-        setParts([]);
-        setFilteredParts([]);
+      // Apply category filter
+      if (category !== 'all') {
+        query = query.eq('category', category);
+      }
+
+      // Apply manufacturer filter with join
+      if (manufacturerId !== 'all') {
+        query = query.eq('manufacturer_id', manufacturerId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Search error:', error);
+        alert('Search failed. Please try again.');
         return;
       }
 
@@ -125,14 +191,27 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
         manufacturer: item.manufacturer
       }));
 
-      console.log('Successfully loaded parts:', typedParts.length);
+      console.log(`Server search results: ${typedParts.length} parts found`);
       setParts(typedParts);
       setFilteredParts(typedParts);
+
     } catch (error) {
-      console.error('Network error fetching parts:', error);
-      alert('Network error: Unable to connect to database. Please check your internet connection.');
+      console.error('Network error during search:', error);
+      alert('Network error: Unable to search. Please check your internet connection.');
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  // Search button handler
+  const handleSearch = () => {
+    performServerSearch(searchTerm, selectedCategory, selectedManufacturer);
+  };
+
+  // Handle Enter key press in search input
+  const handleSearchKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
     }
   };
 
@@ -171,10 +250,14 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
     }
   };
 
+  // Initialize data on component mount
   useEffect(() => {
     const loadData = async () => {
-      await fetchParts();
-      await fetchManufacturers();
+      await Promise.all([
+        fetchManufacturers(),
+        fetchCategories(),
+        fetchTotalPartsCount(),
+      ]);
       setTimeout(() => {
         fetchUserDiscount();
       }, 500);
@@ -183,51 +266,17 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
     loadData();
   }, []);
 
+  // Auto-search when filters change (but not search term)
   useEffect(() => {
-    let filtered: Part[] = parts;
-
-    if (searchTerm) {
-      filtered = filtered.filter((part: Part) => {
-        const compatibleModels = Array.isArray(part.compatible_models) 
-          ? part.compatible_models 
-          : typeof part.compatible_models === 'string' 
-            ? [part.compatible_models] 
-            : [];
-            
-        return (
-          part.part_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          part.part_description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          part.manufacturer?.manufacturer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          part.manufacturer?.make?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          part.make_part_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          compatibleModels.some((model: string) => 
-            model.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-        );
-      });
+    if (searchPerformed) {
+      performServerSearch(searchTerm, selectedCategory, selectedManufacturer);
     }
-
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter((part: Part) => part.category === selectedCategory);
-    }
-
-    if (selectedManufacturer !== 'all') {
-      filtered = filtered.filter((part: Part) => 
-        part.manufacturer?.id === selectedManufacturer
-      );
-    }
-
-    setFilteredParts(filtered);
-  }, [searchTerm, selectedCategory, selectedManufacturer, parts]);
+  }, [selectedCategory, selectedManufacturer, performServerSearch, searchTerm, searchPerformed]);
 
   const calculateDiscountedPrice = (price: string | number): string => {
     const numericPrice = typeof price === 'string' ? parseFloat(price) : price;
     const discountAmount = numericPrice * (userDiscount / 100);
     return (numericPrice - discountAmount).toFixed(2);
-  };
-
-  const getUniqueCategories = (): string[] => {
-    return Array.from(new Set(parts.map((part: Part) => part.category)));
   };
 
   const isInCart = (partId: string): boolean => {
@@ -264,7 +313,16 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
     onAddToCart(part);
   };
 
-  if (loading) {
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('all');
+    setSelectedManufacturer('all');
+    setParts([]);
+    setFilteredParts([]);
+    setSearchPerformed(false);
+  };
+
+  if (loading && !searchPerformed) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -294,45 +352,95 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
             flexDirection: window.innerWidth >= 1024 ? 'row' : 'column',
             gap: '24px'
           }}>
-            {/* Search Input */}
-            <div style={{ flex: 1, position: 'relative' }}>
-              <Search style={{
-                position: 'absolute',
-                left: '16px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: '#9ca3af',
-                width: '20px',
-                height: '20px'
-              }} />
-              <input
-                type="text"
-                placeholder="Search by part number, description, manufacturer, or model..."
+            {/* Search Input with Button */}
+            <div style={{ flex: 1, position: 'relative', display: 'flex', gap: '8px' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Search style={{
+                  position: 'absolute',
+                  left: '16px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#9ca3af',
+                  width: '20px',
+                  height: '20px'
+                }} />
+                <input
+                  type="text"
+                  placeholder="Search by part number, description, manufacturer, or model..."
+                  style={{
+                    width: '100%',
+                    paddingLeft: '48px',
+                    paddingRight: '16px',
+                    paddingTop: '12px',
+                    paddingBottom: '12px',
+                    border: '5px solid #d63838ff',
+                    borderRadius: '12px',
+                    fontSize: '16px',
+                    color: '#111827',
+                    backgroundColor: 'white',
+                    outline: 'none',
+                    transition: 'all 0.2s'
+                  }}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyPress={handleSearchKeyPress}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#d63838ff';
+                    e.target.style.boxShadow = '0 0 0 3px #d63838ff';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#e5e7eb';
+                    e.target.style.boxShadow = 'none';
+                  }}
+                />
+              </div>
+              
+              {/* Search Button */}
+              <button
+                onClick={handleSearch}
+                disabled={loading}
                 style={{
-                  width: '100%',
-                  paddingLeft: '48px',
-                  paddingRight: '16px',
-                  paddingTop: '12px',
-                  paddingBottom: '12px',
-                  border: '5px solid #d63838ff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '12px 24px',
+                  background: loading 
+                    ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)'
+                    : 'linear-gradient(135deg, #d63838ff 0%, #b91c1c 100%)',
+                  color: 'white',
+                  border: 'none',
                   borderRadius: '12px',
                   fontSize: '16px',
-                  color: '#111827',
-                  backgroundColor: 'white',
-                  outline: 'none',
-                  transition: 'all 0.2s'
+                  fontWeight: '600',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap',
+                  minWidth: '120px'
                 }}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#d63838ff';
-                  e.target.style.boxShadow = '0 0 0 3px #d63838ff';
+                onMouseEnter={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(214, 56, 56, 0.3)';
+                  }
                 }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#e5e7eb';
-                  e.target.style.boxShadow = 'none';
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
-              />
+              >
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    <Search size={18} />
+                    Search
+                  </>
+                )}
+              </button>
             </div>
 
             {/* Category Filter */}
@@ -355,7 +463,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
                 }}
               >
                 <option value="all">All Categories</option>
-                {getUniqueCategories().map((category: string) => (
+                {categories.map((category: string) => (
                   <option key={category} value={category}>{category}</option>
                 ))}
               </select>
@@ -393,10 +501,29 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
 
         {/* Results Summary */}
         <div style={{ marginBottom: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <p style={{ fontSize: '1.125rem', fontWeight: '500', color: '#374151' }}>
-              Showing <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{filteredParts.length}</span> of <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{parts.length}</span> parts
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              {searchPerformed ? (
+                <>
+                  <p style={{ fontSize: '1.125rem', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+                    Found <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{filteredParts.length}</span> parts
+                    {filteredParts.length === 1000 && (
+                      <span style={{ color: '#dc2626', fontSize: '0.875rem', marginLeft: '8px' }}>
+                        (showing first 1,000 results - refine search for more specific results)
+                      </span>
+                    )}
+                  </p>
+                  <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                    Searching {totalParts.toLocaleString()} total parts in database
+                  </p>
+                </>
+              ) : (
+                <p style={{ fontSize: '1.125rem', fontWeight: '500', color: '#6b7280' }}>
+                  Search through {totalParts.toLocaleString()} available parts
+                </p>
+              )}
+            </div>
+            
             {filteredParts.length > 0 && searchTerm && (
               <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
                 Results for "{searchTerm}"
@@ -404,6 +531,22 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
             )}
           </div>
         </div>
+
+        {/* Smart result limiting warning */}
+        {filteredParts.length === 1000 && (
+          <div style={{
+            backgroundColor: '#fef3c7',
+            border: '1px solid #f59e0b',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '24px',
+            textAlign: 'center'
+          }}>
+            <p style={{ color: '#92400e', fontSize: '0.875rem', margin: 0 }}>
+              <strong>Showing first 1,000 results.</strong> For better performance and more specific results, try refining your search with more specific terms or use the category/manufacturer filters.
+            </p>
+          </div>
+        )}
 
         {/* Parts Grid */}
         <div style={{
@@ -694,8 +837,8 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
           })}
         </div>
 
-        {/* No Results State */}
-        {filteredParts.length === 0 && (
+        {/* No Search Performed State */}
+        {!searchPerformed && !loading && (
           <div style={{ textAlign: 'center', padding: '64px 0' }}>
             <div style={{
               backgroundColor: 'white',
@@ -703,7 +846,52 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
               boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
               border: '1px solid #e5e7eb',
               padding: '48px',
-              maxWidth: '384px',
+              maxWidth: '500px',
+              margin: '0 auto'
+            }}>
+              <div style={{ color: '#3b82f6', marginBottom: '24px' }}>
+                <Search style={{ width: '80px', height: '80px', margin: '0 auto' }} />
+              </div>
+              <h3 style={{
+                fontSize: '1.5rem',
+                fontWeight: 'bold',
+                color: '#111827',
+                marginBottom: '16px'
+              }}>
+                Ready to Search
+              </h3>
+              <p style={{
+                color: '#6b7280',
+                marginBottom: '32px',
+                lineHeight: '1.5'
+              }}>
+                Enter your search terms above and click "Search" to find parts from our inventory of <strong>{totalParts.toLocaleString()}</strong> items.
+              </p>
+              <div style={{
+                padding: '16px',
+                backgroundColor: '#f0f9ff',
+                borderRadius: '8px',
+                border: '1px solid #bae6fd',
+                marginTop: '24px'
+              }}>
+                <p style={{ color: '#0369a1', fontSize: '0.875rem', margin: 0 }}>
+                  💡 <strong>Search Tips:</strong> Try part numbers, descriptions, manufacturer names, or compatible models. Use filters to narrow results.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* No Results State */}
+        {searchPerformed && filteredParts.length === 0 && !loading && (
+          <div style={{ textAlign: 'center', padding: '64px 0' }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e5e7eb',
+              padding: '48px',
+              maxWidth: '500px',
               margin: '0 auto'
             }}>
               <div style={{ color: '#9ca3af', marginBottom: '24px' }}>
@@ -722,14 +910,24 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
                 marginBottom: '24px',
                 lineHeight: '1.5'
               }}>
-                Try adjusting your search criteria or filters to find what you're looking for
+                No parts match your current search criteria. Try:
               </p>
+              <ul style={{
+                textAlign: 'left',
+                color: '#6b7280',
+                marginBottom: '32px',
+                maxWidth: '300px',
+                margin: '0 auto 32px',
+                listStyle: 'none',
+                padding: 0
+              }}>
+                <li>• Checking your spelling</li>
+                <li>• Using fewer or different keywords</li>
+                <li>• Removing some filters</li>
+                <li>• Searching by part number instead</li>
+              </ul>
               <button
-                onClick={() => {
-                  setSearchTerm('');
-                  setSelectedCategory('all');
-                  setSelectedManufacturer('all');
-                }}
+                onClick={clearAllFilters}
                 style={{
                   padding: '12px 24px',
                   backgroundColor: '#2563eb',
@@ -747,7 +945,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
                   e.currentTarget.style.backgroundColor = '#2563eb';
                 }}
               >
-                Clear All Filters
+                Clear Search & Filters
               </button>
             </div>
           </div>

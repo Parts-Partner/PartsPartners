@@ -10,26 +10,20 @@ import {
   Package, 
   FileText,
   Menu,
-  X,
-  ArrowLeft
+  X
 } from 'lucide-react';
 
 // Import your components
-import PartsSearch from './parts-search-component';
+import UltimatePartsSearch from './UltimatePartsSearch';
 import CSVImportSystem from './csv_import_system';
 import PaymentFlow from './PaymentFlow';
 import TechFinder from './GoogleMapsTechFinder';
-import MockUPSFreightCalculator from './MockUPSFreightCalculator';
-import BulkOrder from './BulkOrder';
-
 
 // Supabase configuration
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-
 
 // TypeScript interfaces - Updated to match new database structure
 interface User {
@@ -78,23 +72,9 @@ interface CartItem extends Part {
   unit_price: number;
   discounted_price: number;
   line_total: number;
-  weight?: number;    
-  length?: number;      
-  width?: number;     
-  height?: number;    
-  hazmat?: boolean;   
 }
 
-interface UPSService {
-  service_code: string;
-  service_name: string;
-  total_charges: number;
-  customer_rate: number;
-  transit_days?: string;
-  delivery_date?: string;
-}
-
-type ActivePage = 'search' | 'cart' | 'admin' | 'profile' | 'login' | 'privacy' | 'terms' | 'cookies' | 'accessibility' | 'shipping' | 'contact';
+type ActivePage = 'search' | 'cart' | 'admin' | 'profile' | 'login';
 
 const OEMPartsApp: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -107,8 +87,6 @@ const OEMPartsApp: React.FC = () => {
   const [showTechFinder, setShowTechFinder] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [selectedFreight, setSelectedFreight] = useState<UPSService | null>(null);
-  const [showBulkOrder, setShowBulkOrder] = useState(false);
 
   // Auth state management
   useEffect(() => {
@@ -246,38 +224,6 @@ const OEMPartsApp: React.FC = () => {
     });
   };
 
-  const handleBulkAddToCart = (items: any[]) => {
-  items.forEach(item => {
-    const unitPrice = typeof item.list_price === 'string' ? parseFloat(item.list_price) : item.list_price;
-    const discountPercentage = userProfile?.discount_percentage || 0;
-    const discountedPrice = unitPrice * (1 - discountPercentage / 100);
-
-    setCartItems(prev => {
-      const existingItem = prev.find(cartItem => cartItem.id === item.id);
-      
-      if (existingItem) {
-        return prev.map(cartItem =>
-          cartItem.id === item.id
-            ? {
-                ...cartItem,
-                quantity: cartItem.quantity + item.quantity,
-                line_total: (cartItem.quantity + item.quantity) * discountedPrice
-              }
-            : cartItem
-        );
-      } else {
-        return [...prev, {
-          ...item,
-          quantity: item.quantity,
-          unit_price: unitPrice,
-          discounted_price: discountedPrice,
-          line_total: item.quantity * discountedPrice
-        }];
-      }
-    });
-  });
-};
-
   const handleUpdateQuantity = (partId: string, quantity: number) => {
     if (quantity <= 0) {
       setCartItems(prev => prev.filter(item => item.id !== partId));
@@ -309,16 +255,12 @@ const OEMPartsApp: React.FC = () => {
   const handleCartSubmit = () => {
     if (!user) {
       setShowLoginModal(true);
-    } else if (!selectedFreight && cartItems.length > 0) {
-      alert('Please select a shipping method first');
     } else {
       setShowPaymentFlow(true);
     }
   };
 
-  const cartSubtotal = cartItems.reduce((sum, item) => sum + item.line_total, 0);
-  const freightCost = selectedFreight?.customer_rate || 0;
-  const cartTotal = cartSubtotal + freightCost;
+  const cartTotal = cartItems.reduce((sum, item) => sum + item.line_total, 0);
   const cartItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   if (loading) {
@@ -328,546 +270,6 @@ const OEMPartsApp: React.FC = () => {
       </div>
     );
   }
-
-  // Legal Pages Components
-const LegalPage: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div style={{ 
-    minHeight: '100vh', 
-    background: 'linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%)',
-    padding: '32px 16px'
-  }}>
-    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      <div style={{
-        backgroundColor: 'white',
-        borderRadius: '16px',
-        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-        border: '1px solid #e5e7eb',
-        padding: '48px',
-        marginBottom: '32px'
-      }}>
-        <div style={{ marginBottom: '32px' }}>
-          <button
-            onClick={() => setActivePage('search')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 16px',
-              backgroundColor: '#f8fafc',
-              color: '#4b5563',
-              border: '1px solid #e5e7eb',
-              borderRadius: '8px',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-              cursor: 'pointer',
-              marginBottom: '24px'
-            }}
-          >
-            <ArrowLeft size={16} />
-            Back to Parts Search
-          </button>
-          <h1 style={{
-            fontSize: '2.5rem',
-            fontWeight: 'bold',
-            color: '#111827',
-            margin: 0,
-            marginBottom: '16px'
-          }}>
-            {title}
-          </h1>
-        </div>
-        <div style={{
-          lineHeight: '1.6',
-          color: '#374151',
-          fontSize: '1rem'
-        }}>
-          {children}
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const PrivacyPolicyPage: React.FC = () => (
-  <LegalPage title="Privacy Policy">
-    <div style={{ marginBottom: '24px' }}>
-      <strong>Effective Date:</strong> January 1, 2025
-    </div>
-    
-    <p>At Parts Partners, we respect your privacy and are committed to protecting your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and use our services.</p>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Information We Collect
-    </h2>
-    
-    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111827', marginTop: '24px', marginBottom: '12px' }}>
-      Personal Information You Provide:
-    </h3>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Name, email address, phone number</li>
-      <li>Company name and business information</li>
-      <li>Billing and shipping addresses</li>
-      <li>Account credentials and preferences</li>
-      <li>Order history and part inquiries</li>
-      <li>Communications with our support team</li>
-    </ul>
-
-    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111827', marginTop: '24px', marginBottom: '12px' }}>
-      Information Automatically Collected:
-    </h3>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>IP address and device information</li>
-      <li>Browser type and operating system</li>
-      <li>Pages visited and time spent on our site</li>
-      <li>Referral sources and search terms</li>
-      <li>Cookies and similar tracking technologies</li>
-    </ul>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      How We Use Your Information
-    </h2>
-    <p>We use your information to:</p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Process orders and provide customer service</li>
-      <li>Maintain your account and preferences</li>
-      <li>Send order confirmations and shipping updates</li>
-      <li>Provide technical support and troubleshooting</li>
-      <li>Improve our website and services</li>
-      <li>Send marketing communications (with your consent)</li>
-      <li>Comply with legal obligations</li>
-      <li>Prevent fraud and ensure security</li>
-    </ul>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Your Rights and Choices
-    </h2>
-    <p><strong>For All Users:</strong></p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li><strong>Access and Correction:</strong> Request access to or correction of your personal information</li>
-      <li><strong>Deletion:</strong> Request deletion of your personal information (subject to legal requirements)</li>
-      <li><strong>Data Portability:</strong> Request a copy of your data in a portable format</li>
-      <li><strong>Opt-Out:</strong> Unsubscribe from marketing communications</li>
-    </ul>
-
-    <p><strong>For EU Residents (GDPR):</strong></p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Right to object to processing</li>
-      <li>Right to restrict processing</li>
-      <li>Right to lodge complaints with supervisory authorities</li>
-    </ul>
-
-    <p><strong>For California Residents (CCPA/CPRA):</strong></p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Right to know what personal information is collected</li>
-      <li>Right to delete personal information</li>
-      <li>Right to opt-out of sale of personal information</li>
-      <li>Right to non-discrimination for exercising privacy rights</li>
-    </ul>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Contact Us
-    </h2>
-    <p>For questions about this Privacy Policy or to exercise your rights, contact us at:</p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li><strong>Email:</strong> privacy@partspartners.com</li>
-      <li><strong>Phone:</strong> [Your Phone Number]</li>
-      <li><strong>Address:</strong> [Your Business Address]</li>
-    </ul>
-
-    <div style={{ 
-      marginTop: '32px', 
-      padding: '16px', 
-      backgroundColor: '#f3f4f6', 
-      borderRadius: '8px',
-      fontSize: '0.875rem',
-      fontStyle: 'italic',
-      color: '#6b7280'
-    }}>
-      This policy is for informational purposes and may be updated. It is not legal advice.
-    </div>
-  </LegalPage>
-);
-
-const TermsOfServicePage: React.FC = () => (
-  <LegalPage title="Terms of Service">
-    <div style={{ marginBottom: '24px' }}>
-      <strong>Effective Date:</strong> January 1, 2025
-    </div>
-    
-    <p>Welcome to Parts Partners. These Terms of Service ("Terms") govern your use of our website and services. By accessing or using our services, you agree to be bound by these Terms.</p>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Description of Services
-    </h2>
-    <p>Parts Partners provides an online platform for searching, quoting, and purchasing OEM parts and related products. We facilitate transactions between buyers and authorized suppliers.</p>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Account Registration
-    </h2>
-    <p>To use certain features, you must create an account and provide accurate, complete information. You are responsible for:</p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Maintaining the confidentiality of your account credentials</li>
-      <li>All activities that occur under your account</li>
-      <li>Notifying us immediately of unauthorized use</li>
-    </ul>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Orders and Pricing
-    </h2>
-    <p><strong>Pricing:</strong> All prices are subject to change without notice. Account-specific pricing and discounts apply where applicable.</p>
-    <p><strong>Orders:</strong> By placing an order, you make an offer to purchase products at the listed prices. We reserve the right to accept or decline any order.</p>
-    <p><strong>Payment:</strong> Payment is processed through Stripe. You authorize us to charge your payment method for all fees and taxes.</p>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Returns and Refunds
-    </h2>
-    <p><strong>Non-Returnable Items:</strong> Most OEM parts are non-returnable due to their specialized nature and industry standards.</p>
-    <p><strong>Defective or Damaged Items:</strong> We will replace or refund items that arrive defective or damaged, provided you notify us within 7 days of delivery.</p>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Limitation of Liability
-    </h2>
-    <p>To the maximum extent permitted by law, Parts Partners and its affiliates shall not be liable for:</p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Indirect, incidental, special, or consequential damages</li>
-      <li>Loss of profits, data, or business opportunities</li>
-      <li>Damages exceeding the amount paid for products or services</li>
-    </ul>
-
-    <div style={{ 
-      marginTop: '32px', 
-      padding: '16px', 
-      backgroundColor: '#f3f4f6', 
-      borderRadius: '8px',
-      fontSize: '0.875rem',
-      fontStyle: 'italic',
-      color: '#6b7280'
-    }}>
-      This policy is for informational purposes and may be updated. It is not legal advice.
-    </div>
-  </LegalPage>
-);
-
-const CookiePolicyPage: React.FC = () => (
-  <LegalPage title="Cookie Policy">
-    <div style={{ marginBottom: '24px' }}>
-      <strong>Effective Date:</strong> January 1, 2025
-    </div>
-    
-    <p>This Cookie Policy explains how Parts Partners uses cookies and similar technologies on our website.</p>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      What Are Cookies
-    </h2>
-    <p>Cookies are small text files stored on your device when you visit websites. They help websites remember your preferences and improve your browsing experience.</p>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Types of Cookies We Use
-    </h2>
-    
-    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111827', marginTop: '24px', marginBottom: '12px' }}>
-      Essential Cookies (Required)
-    </h3>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Authentication and security cookies</li>
-      <li>Shopping cart and session management</li>
-      <li>Load balancing and performance optimization</li>
-      <li>These cookies are necessary for basic website functionality</li>
-    </ul>
-
-    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111827', marginTop: '24px', marginBottom: '12px' }}>
-      Analytics Cookies (Optional)
-    </h3>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Google Analytics: Track website usage and performance</li>
-      <li>Cloudflare Analytics: Monitor site security and performance</li>
-      <li>Help us understand how visitors use our site</li>
-    </ul>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Managing Cookie Preferences
-    </h2>
-    <p>You can control cookies through your browser settings:</p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li><strong>Chrome:</strong> Settings → Privacy and Security → Cookies</li>
-      <li><strong>Firefox:</strong> Settings → Privacy & Security → Cookies</li>
-      <li><strong>Safari:</strong> Preferences → Privacy → Cookies</li>
-      <li><strong>Edge:</strong> Settings → Cookies and Site Permissions</li>
-    </ul>
-
-    <div style={{ 
-      marginTop: '32px', 
-      padding: '16px', 
-      backgroundColor: '#f3f4f6', 
-      borderRadius: '8px',
-      fontSize: '0.875rem',
-      fontStyle: 'italic',
-      color: '#6b7280'
-    }}>
-      This policy is for informational purposes and may be updated. It is not legal advice.
-    </div>
-  </LegalPage>
-);
-
-const AccessibilityPage: React.FC = () => (
-  <LegalPage title="Accessibility Statement">
-    <div style={{ marginBottom: '24px' }}>
-      <strong>Effective Date:</strong> January 1, 2025
-    </div>
-    
-    <p>Parts Partners is committed to ensuring digital accessibility for people with disabilities. We continually improve the user experience for everyone and apply relevant accessibility standards.</p>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Our Commitment
-    </h2>
-    <p>We strive to make our website accessible to all users, including those who rely on assistive technologies. Our goal is to meet or exceed Web Content Accessibility Guidelines (WCAG) 2.1 Level AA standards.</p>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Accessibility Features
-    </h2>
-    <p>Our website includes:</p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Keyboard navigation support</li>
-      <li>Screen reader compatibility</li>
-      <li>Alternative text for images</li>
-      <li>Consistent navigation structure</li>
-      <li>Clear headings and labels</li>
-      <li>Sufficient color contrast</li>
-      <li>Resizable text up to 200%</li>
-    </ul>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Feedback and Contact
-    </h2>
-    <p>We welcome feedback on the accessibility of our website. If you encounter accessibility barriers or need assistance:</p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li><strong>Email:</strong> accessibility@partspartners.com</li>
-      <li><strong>Phone:</strong> [Your Phone Number]</li>
-      <li><strong>Address:</strong> [Your Business Address]</li>
-    </ul>
-
-    <div style={{ 
-      marginTop: '32px', 
-      padding: '16px', 
-      backgroundColor: '#f3f4f6', 
-      borderRadius: '8px',
-      fontSize: '0.875rem',
-      fontStyle: 'italic',
-      color: '#6b7280'
-    }}>
-      This statement is for informational purposes and may be updated. It is not legal advice.
-    </div>
-  </LegalPage>
-);
-
-const ShippingPolicyPage: React.FC = () => (
-  <LegalPage title="Shipping & Returns Policy">
-    <div style={{ marginBottom: '24px' }}>
-      <strong>Effective Date:</strong> January 1, 2025
-    </div>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Shipping Policy
-    </h2>
-    <p><strong>Processing Time:</strong> Orders are typically processed within 1-2 business days after payment confirmation.</p>
-    
-    <p><strong>Shipping Methods:</strong></p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Standard Shipping: 3-7 business days</li>
-      <li>Expedited Shipping: 1-3 business days</li>
-      <li>Freight Shipping: 5-10 business days for large items</li>
-    </ul>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Return Policy
-    </h2>
-    <div style={{ 
-      padding: '16px', 
-      backgroundColor: '#fef3c7', 
-      border: '1px solid #f59e0b', 
-      borderRadius: '8px',
-      marginBottom: '16px'
-    }}>
-      <strong>Important:</strong> Most OEM parts are manufactured to specific equipment requirements and are considered special-order items. Due to industry standards and the specialized nature of these products, <strong>most parts are non-returnable and non-refundable</strong> once ordered.
-    </div>
-
-    <p><strong>Non-Returnable Items:</strong></p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Custom or special-order parts</li>
-      <li>Electrical components and electronic parts</li>
-      <li>Parts that have been installed or used</li>
-      <li>Items without original packaging</li>
-      <li>Hazardous materials</li>
-    </ul>
-
-    <p><strong>Returnable Items (Limited Circumstances):</strong></p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li>Items that arrive damaged or defective</li>
-      <li>Products that are significantly different from description</li>
-      <li>Items shipped in error by our team</li>
-    </ul>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Contact for Returns and Shipping
-    </h2>
-    <p>For questions about shipping or to initiate a return:</p>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li><strong>Email:</strong> returns@partspartners.com</li>
-      <li><strong>Phone:</strong> [Your Phone Number]</li>
-      <li><strong>Address:</strong> [Your Business Address]</li>
-    </ul>
-
-    <div style={{ 
-      marginTop: '32px', 
-      padding: '16px', 
-      backgroundColor: '#f3f4f6', 
-      borderRadius: '8px',
-      fontSize: '0.875rem',
-      fontStyle: 'italic',
-      color: '#6b7280'
-    }}>
-      This policy is for informational purposes and may be updated. It is not legal advice.
-    </div>
-  </LegalPage>
-);
-
-const ContactPage: React.FC = () => (
-  <LegalPage title="Contact Us">
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Customer Service
-    </h2>
-    <p><strong>Email:</strong> support@partspartners.com</p>
-    <p><strong>Phone:</strong> [Your Phone Number]</p>
-    <p><strong>Hours:</strong> Monday - Friday, 8:00 AM - 6:00 PM EST</p>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Business Address
-    </h2>
-    <p>Parts Partners<br />
-    [Your Street Address]<br />
-    [City, State ZIP Code]<br />
-    [Country]</p>
-
-    <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>
-      Specialized Contact
-    </h2>
-    <ul style={{ marginLeft: '20px', marginBottom: '16px' }}>
-      <li><strong>Technical Support:</strong> tech@partspartners.com</li>
-      <li><strong>Returns & Refunds:</strong> returns@partspartners.com</li>
-      <li><strong>Privacy Questions:</strong> privacy@partspartners.com</li>
-      <li><strong>Accessibility Support:</strong> accessibility@partspartners.com</li>
-      <li><strong>Sales Inquiries:</strong> sales@partspartners.com</li>
-    </ul>
-  </LegalPage>
-);
-
-  // Footer Component
-  const Footer: React.FC = () => (
-    <footer style={{ 
-      backgroundColor: '#f9fafb', 
-      borderTop: '1px solid #e5e7eb', 
-      padding: '32px 16px',
-      marginTop: 'auto'
-    }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto', textAlign: 'center' }}>
-        <div style={{ 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          justifyContent: 'center', 
-          gap: '24px', 
-          fontSize: '14px', 
-          marginBottom: '16px' 
-        }}>
-          <button 
-            onClick={() => setActivePage('privacy')}
-            style={{ 
-              color: '#6b7280', 
-              textDecoration: 'none',
-              backgroundColor: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            Privacy Policy
-          </button>
-          <span style={{ color: '#9ca3af' }}>|</span>
-          <button 
-            onClick={() => setActivePage('terms')}
-            style={{ 
-              color: '#6b7280', 
-              textDecoration: 'none',
-              backgroundColor: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            Terms of Service
-          </button>
-          <span style={{ color: '#9ca3af' }}>|</span>
-          <button 
-            onClick={() => setActivePage('cookies')}
-            style={{ 
-              color: '#6b7280', 
-              textDecoration: 'none',
-              backgroundColor: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            Cookie Policy
-          </button>
-          <span style={{ color: '#9ca3af' }}>|</span>
-          <button 
-            onClick={() => setActivePage('accessibility')}
-            style={{ 
-              color: '#6b7280', 
-              textDecoration: 'none',
-              backgroundColor: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            Accessibility
-          </button>
-          <span style={{ color: '#9ca3af' }}>|</span>
-          <button 
-            onClick={() => setActivePage('shipping')}
-            style={{ 
-              color: '#6b7280', 
-              textDecoration: 'none',
-              backgroundColor: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            Shipping & Returns
-          </button>
-          <span style={{ color: '#9ca3af' }}>|</span>
-          <button 
-            onClick={() => setActivePage('contact')}
-            style={{ 
-              color: '#6b7280', 
-              textDecoration: 'none',
-              backgroundColor: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            Contact Us
-          </button>
-        </div>
-        <div style={{ color: '#6b7280', fontSize: '12px' }}>
-          © 2025 Parts Partners. All rights reserved.
-        </div>
-      </div>
-    </footer>
-  );
 
   // Login/Signup Component
   const LoginPage: React.FC = () => {
@@ -1041,188 +443,164 @@ const ContactPage: React.FC = () => (
     );
   };
 
-// CartPage component
-const CartPage: React.FC = () => {
-  return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: 'linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%)',
-      padding: '32px 16px'
-    }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        {/* Header Section */}
-        <div style={{
-          backgroundColor: 'white',
-          borderRadius: '16px',
-          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-          border: '1px solid #e5e7eb',
-          padding: '32px',
-          marginBottom: '32px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-            <div style={{
-              padding: '12px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-              borderRadius: '12px',
-              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
-            }}>
-              <ShoppingCart style={{ width: '24px', height: '24px', color: 'white' }} />
-            </div>
-            <div>
-              <h1 style={{
-                fontSize: '2rem',
-                fontWeight: 'bold',
-                color: '#111827',
-                margin: 0,
-                lineHeight: '1.2'
-              }}>
-                Quote Cart
-              </h1>
-              <p style={{
-                color: '#6b7280',
-                fontSize: '1rem',
-                margin: 0
-              }}>
-                Review your selected parts and get shipping quote
-              </p>
-            </div>
-          </div>
-          
-          {cartItems.length > 0 && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '24px',
-              padding: '16px 20px',
-              backgroundColor: '#f8fafc',
-              borderRadius: '12px',
-              border: '1px solid #e2e8f0'
-            }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1e40af' }}>
-                  {cartItemCount}
-                </div>
-                <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                  {cartItemCount === 1 ? 'Item' : 'Items'}
-                </div>
-              </div>
-              <div style={{ width: '1px', height: '40px', backgroundColor: '#e2e8f0' }}></div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#059669' }}>
-                  ${cartSubtotal.toFixed(2)}
-                </div>
-                <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                  Parts Subtotal
-                </div>
-              </div>
-              {selectedFreight && (
-                <>
-                  <div style={{ width: '1px', height: '40px', backgroundColor: '#e2e8f0' }}></div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#dc2626' }}>
-                      ${selectedFreight.customer_rate.toFixed(2)}
-                    </div>
-                    <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                      Shipping
-                    </div>
-                  </div>
-                </>
-              )}
-              <div style={{ width: '1px', height: '40px', backgroundColor: '#e2e8f0' }}></div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#111827' }}>
-                  ${cartTotal.toFixed(2)}
-                </div>
-                <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                  Total
-                </div>
-              </div>
-              {userProfile?.discount_percentage && userProfile.discount_percentage > 0 && (
-                <>
-                  <div style={{ width: '1px', height: '40px', backgroundColor: '#e2e8f0' }}></div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#059669' }}>
-                      {userProfile.discount_percentage}%
-                    </div>
-                    <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                      Discount Applied
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-        
-        {cartItems.length === 0 ? (
-          /* Empty Cart State */
+  // Cart Component
+  const CartPage: React.FC = () => {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%)',
+        padding: '32px 16px'
+      }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          {/* Header Section */}
           <div style={{
             backgroundColor: 'white',
             borderRadius: '16px',
             boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
             border: '1px solid #e5e7eb',
-            padding: '64px 32px',
-            textAlign: 'center'
+            padding: '32px',
+            marginBottom: '32px'
           }}>
-            <div style={{
-              width: '80px',
-              height: '80px',
-              backgroundColor: '#f1f5f9',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 24px'
-            }}>
-              <ShoppingCart style={{ width: '40px', height: '40px', color: '#94a3b8' }} />
-            </div>
-            <h3 style={{
-              fontSize: '1.5rem',
-              fontWeight: '600',
-              color: '#111827',
-              marginBottom: '8px'
-            }}>
-              Your cart is empty
-            </h3>
-            <p style={{
-              color: '#6b7280',
-              fontSize: '1rem',
-              marginBottom: '32px',
-              maxWidth: '400px',
-              margin: '0 auto 32px'
-            }}>
-              Start adding parts to create a professional purchase order
-            </p>
-            <button
-              onClick={() => setActivePage('search')}
-              style={{
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+              <div style={{
+                padding: '12px',
                 background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-                color: 'white',
-                padding: '12px 32px',
                 borderRadius: '12px',
-                border: 'none',
-                fontSize: '1rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 8px 20px rgba(59, 130, 246, 0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
-              }}
-            >
-              Browse Parts Catalog
-            </button>
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
+              }}>
+                <ShoppingCart style={{ width: '24px', height: '24px', color: 'white' }} />
+              </div>
+              <div>
+                <h1 style={{
+                  fontSize: '2rem',
+                  fontWeight: 'bold',
+                  color: '#111827',
+                  margin: 0,
+                  lineHeight: '1.2'
+                }}>
+                  Quote Cart
+                </h1>
+                <p style={{
+                  color: '#6b7280',
+                  fontSize: '1rem',
+                  margin: 0
+                }}>
+                  Review your selected parts and request a quote
+                </p>
+              </div>
+            </div>
+            
+            {cartItems.length > 0 && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '24px',
+                padding: '16px 20px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '12px',
+                border: '1px solid #e2e8f0'
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1e40af' }}>
+                    {cartItemCount}
+                  </div>
+                  <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                    {cartItemCount === 1 ? 'Item' : 'Items'}
+                  </div>
+                </div>
+                <div style={{ width: '1px', height: '40px', backgroundColor: '#e2e8f0' }}></div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#059669' }}>
+                    ${cartTotal.toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                    Total Value
+                  </div>
+                </div>
+                {userProfile?.discount_percentage && userProfile.discount_percentage > 0 && (
+                  <>
+                    <div style={{ width: '1px', height: '40px', backgroundColor: '#e2e8f0' }}></div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#dc2626' }}>
+                        {userProfile.discount_percentage}%
+                      </div>
+                      <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                        Discount
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
-        ) : (
-          /* Cart Items and Freight Calculator */
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '32px' }}>
-            {/* Left Column - Cart Items */}
+          
+          {cartItems.length === 0 ? (
+            /* Empty Cart State */
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '16px',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e5e7eb',
+              padding: '64px 32px',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                width: '80px',
+                height: '80px',
+                backgroundColor: '#f1f5f9',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 24px'
+              }}>
+                <ShoppingCart style={{ width: '40px', height: '40px', color: '#94a3b8' }} />
+              </div>
+              <h3 style={{
+                fontSize: '1.5rem',
+                fontWeight: '600',
+                color: '#111827',
+                marginBottom: '8px'
+              }}>
+                Your cart is empty
+              </h3>
+              <p style={{
+                color: '#6b7280',
+                fontSize: '1rem',
+                marginBottom: '32px',
+                maxWidth: '400px',
+                margin: '0 auto 32px'
+              }}>
+                Start adding parts to create a professional purchase order
+              </p>
+              <button
+                onClick={() => setActivePage('search')}
+                style={{
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                  color: 'white',
+                  padding: '12px 32px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 8px 20px rgba(59, 130, 246, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
+                }}
+              >
+                Browse Parts Catalog
+              </button>
+            </div>
+          ) : (
+            /* Cart Items */
             <div style={{ display: 'grid', gap: '24px' }}>
               {cartItems.map((item, index) => (
                 <div key={item.id} style={{
@@ -1411,136 +789,77 @@ const CartPage: React.FC = () => {
                   </div>
                 </div>
               ))}
-            </div>
-
-            {/* Right Column - Freight Calculator */}
-            <div style={{ position: 'sticky', top: '32px', height: 'fit-content' }}>
-              <MockUPSFreightCalculator
-                cartItems={cartItems.map(item => ({
-                  id: item.id,
-                  part_number: item.part_number,
-                  quantity: item.quantity,
-                  weight: item.weight || 1, // Default weight if not set
-                  length: item.length || 12,
-                  width: item.width || 12,
-                  height: item.height || 6,
-                  hazmat: item.hazmat || false
-                }))}
-                onFreightSelect={(freight) => setSelectedFreight(freight)}
-                selectedFreight={selectedFreight}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Checkout Section - Only show if cart has items */}
-        {cartItems.length > 0 && (
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '16px',
-            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-            border: '1px solid #e5e7eb',
-            padding: '32px',
-            marginTop: '32px'
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: '24px'
-            }}>
-              <div>
-                <h3 style={{
-                  fontSize: '1.5rem',
-                  fontWeight: 'bold',
-                  color: '#111827',
-                  marginBottom: '8px'
-                }}>
-                  Ready to submit your purchase order?
-                </h3>
-                <div style={{ color: '#6b7280', fontSize: '1rem' }}>
-                  <div style={{ marginBottom: '4px' }}>
-                    Parts Subtotal: <span style={{ fontWeight: '600', color: '#111827' }}>${cartSubtotal.toFixed(2)}</span>
-                  </div>
-                  {selectedFreight && (
-                    <div style={{ marginBottom: '4px' }}>
-                      Shipping ({selectedFreight.service_name}): <span style={{ fontWeight: '600', color: '#111827' }}>${selectedFreight.customer_rate.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#111827', marginTop: '8px' }}>
-                    Total: ${cartTotal.toFixed(2)}
-                  </div>
-                  {userProfile?.discount_percentage && userProfile.discount_percentage > 0 && (
-                    <div style={{ color: '#059669', fontSize: '0.875rem', marginTop: '4px' }}>
-                      ({userProfile.discount_percentage}% parts discount applied)
-                    </div>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={handleCartSubmit}
-                disabled={!selectedFreight && cartItems.length > 0}
-                style={{
-                  background: selectedFreight 
-                    ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                    : 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)',
-                  color: 'white',
-                  padding: '16px 32px',
-                  borderRadius: '12px',
-                  border: 'none',
-                  fontSize: '1.1rem',
-                  fontWeight: '600',
-                  cursor: selectedFreight ? 'pointer' : 'not-allowed',
-                  boxShadow: selectedFreight 
-                    ? '0 4px 12px rgba(16, 185, 129, 0.3)'
-                    : '0 4px 12px rgba(156, 163, 175, 0.3)',
-                  transition: 'all 0.2s ease',
-                  whiteSpace: 'nowrap'
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedFreight) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(16, 185, 129, 0.4)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = selectedFreight 
-                    ? '0 4px 12px rgba(16, 185, 129, 0.3)'
-                    : '0 4px 12px rgba(156, 163, 175, 0.3)';
-                }}
-              >
-                {!selectedFreight && cartItems.length > 0 
-                  ? 'Select Shipping Method' 
-                  : user 
-                    ? 'Submit Purchase Order' 
-                    : 'Login to Complete Order'
-                }
-              </button>
-            </div>
-
-            {!selectedFreight && cartItems.length > 0 && (
+              
+              {/* Cart Summary & Checkout */}
               <div style={{
-                marginTop: '16px',
-                padding: '12px',
-                backgroundColor: '#fef3c7',
-                border: '1px solid #f59e0b',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
+                backgroundColor: 'white',
+                borderRadius: '16px',
+                boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+                border: '1px solid #e5e7eb',
+                padding: '32px'
               }}>
-                <div style={{ color: '#d97706', fontSize: '0.875rem' }}>
-                  ⚠️ Please select a shipping method to continue
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '24px'
+                }}>
+                  <div>
+                    <h3 style={{
+                      fontSize: '1.5rem',
+                      fontWeight: 'bold',
+                      color: '#111827',
+                      marginBottom: '8px'
+                    }}>
+                      Ready to submit your purchase order?
+                    </h3>
+                    <p style={{
+                      color: '#6b7280',
+                      fontSize: '1rem',
+                      margin: 0
+                    }}>
+                      Total: <span style={{ fontWeight: '600', color: '#111827' }}>${cartTotal.toFixed(2)}</span>
+                      {userProfile?.discount_percentage && userProfile.discount_percentage > 0 && (
+                        <span style={{ color: '#059669', fontSize: '0.875rem', marginLeft: '8px' }}>
+                          ({userProfile.discount_percentage}% discount applied)
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleCartSubmit}
+                    style={{
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: 'white',
+                      padding: '16px 32px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      fontSize: '1.1rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                      transition: 'all 0.2s ease',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 8px 20px rgba(16, 185, 129, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
+                    }}
+                  >
+                    {user ? 'Submit Purchase Order' : 'Login to Complete Order'}
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   // Profile Component
   const ProfilePage: React.FC = () => {
@@ -2077,7 +1396,7 @@ const CartPage: React.FC = () => {
               {/* Brand Text */}
               <div className="hidden sm:block">
                 <h1 className="text-4xl font-bold text-gray-900 leading-tight font-bold">Parts Partner</h1>
-                <p className="text-sm text-gray-600 font-medium">Parts Now.</p>
+                <p className="text-sm text-gray-600 font-medium">Right Parts. Right Now.</p>
               </div>
             </div>
           </div>
@@ -2502,35 +1821,13 @@ return (
           color: '#6b7280',
           margin: '-16px 0 0 0'
         }}>
-          Parts Now.
+          Right Parts. Right Now.
         </p>
       </div>
     </div>
 
     {/* Right Side Actions */}
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-      {/* Bulk Order Button - Only show if user is logged in */}
-      {user && (
-        <button
-          onClick={() => setShowBulkOrder(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 16px',
-            background: 'linear-gradient(135deg, #8f0202ff 0%, #cc6e6eff 100%)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '0.875rem',
-            fontWeight: '600',
-            cursor: 'pointer'
-          }}
-        >
-          Bulk Order
-        </button>
-      )}
-
       {/* Find Tech Button */}
       <button
         onClick={() => setShowTechFinder(true)}
@@ -2539,7 +1836,7 @@ return (
           alignItems: 'center',
           gap: '6px',
           padding: '8px 16px',
-          background: 'linear-gradient(135deg, #8f0202ff 0%, #cc6e6eff 100%)',
+          background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
           color: 'white',
           border: 'none',
           borderRadius: '8px',
@@ -2650,19 +1947,12 @@ return (
     <main className="relative">
       <div className="py-8">
         {activePage === 'search' && (
-          <PartsSearch 
+          <UltimatePartsSearch 
             onAddToCart={handleAddToCart}
             cartItems={cartItems}
             onUpdateQuantity={handleUpdateQuantity}
           />
         )}
-
-        {activePage === 'privacy' && <PrivacyPolicyPage />}
-        {activePage === 'terms' && <TermsOfServicePage />}
-        {activePage === 'cookies' && <CookiePolicyPage />}
-        {activePage === 'accessibility' && <AccessibilityPage />}
-        {activePage === 'shipping' && <ShippingPolicyPage />}
-        {activePage === 'contact' && <ContactPage />}
         
         {activePage === 'cart' && <CartPage />}
         
@@ -2731,7 +2021,7 @@ return (
             try {
               await handleLogin(email, password);
               setShowLoginModal(false);
-              setActivePage('search');
+              setActivePage('cart');
             } catch (error: any) {
               alert('Login failed: ' + error.message);
             }
@@ -3019,73 +2309,30 @@ return (
             </button>
           </form>
 
-        <p style={{ 
-          fontSize: '0.75rem', 
-          color: '#6b7280', 
-          textAlign: 'center', 
-          marginTop: '16px',
-          lineHeight: '1.4'
-        }}>
-          By creating an account, you agree to our{' '}
-          <button
-            onClick={() => {
-              setShowRegisterModal(false);
-              setActivePage('terms');
-            }}
-            style={{
-              color: '#3b82f6',
-              textDecoration: 'underline',
-              backgroundColor: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.75rem'
-            }}
-          >
-            terms of service
-          </button>{' '}
-          and{' '}
-          <button
-            onClick={() => {
-              setShowRegisterModal(false);
-              setActivePage('privacy');
-            }}
-            style={{
-              color: '#3b82f6',
-              textDecoration: 'underline',
-              backgroundColor: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.75rem'
-            }}
-          >
-            privacy policy
-          </button>
-          . You'll receive an email to verify your account.
-        </p>
+          <p style={{ 
+            fontSize: '0.75rem', 
+            color: '#6b7280', 
+            textAlign: 'center', 
+            marginTop: '16px',
+            lineHeight: '1.4'
+          }}>
+            By creating an account, you agree to our terms of service. You'll receive an email to verify your account.
+          </p>
         </div>
       </div>
     )}
 
+      {/* Payment Flow Modal */}
       {showPaymentFlow && (
-      <PaymentFlow
-        cartItems={cartItems}
-        cartTotal={cartTotal}
-        userDiscount={userProfile?.discount_percentage || 0}
-        onSuccess={handlePaymentSuccess}
-        onClose={() => setShowPaymentFlow(false)}
-        userProfile={userProfile}
-      />
-    )}
-    {/* Bulk Order Modal */}
-    {showBulkOrder && (
-      <BulkOrder
-        isOpen={showBulkOrder}
-        onClose={() => setShowBulkOrder(false)}
-        onAddToCart={handleBulkAddToCart}
-        userProfile={userProfile}
-      />
-    )}
-    <Footer />
+        <PaymentFlow
+          cartItems={cartItems}
+          cartTotal={cartTotal}
+          userDiscount={userProfile?.discount_percentage || 0}
+          onSuccess={handlePaymentSuccess}
+          onClose={() => setShowPaymentFlow(false)}
+          userProfile={userProfile}
+        />
+      )}
     </div>
   );
 };

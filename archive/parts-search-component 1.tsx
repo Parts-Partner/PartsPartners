@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Minus, ShoppingCart } from 'lucide-react';
+import { Search, Plus, Minus, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 // TypeScript interfaces
@@ -51,6 +51,13 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
   const [userDiscount, setUserDiscount] = useState<number>(0);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalParts, setTotalParts] = useState<number>(0);
+  const [itemsPerPage] = useState<number>(2000); // Increased from default 1000
+  const [paginationLoading, setPaginationLoading] = useState<boolean>(false);
 
   // Use local placeholder image
   const placeholderImageUrl = '/No_Product_Image_Filler.png';
@@ -79,10 +86,43 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
     }
   };
 
-  // Fetch parts from Supabase with manufacturer data
-  const fetchParts = async (): Promise<void> => {
+  // Get total count of parts
+  const fetchTotalPartsCount = async (): Promise<number> => {
     try {
-      setLoading(true);
+      const { count, error } = await supabase
+        .from('parts')
+        .select('*', { count: 'exact', head: true });
+
+      if (error) {
+        console.error('Error fetching parts count:', error);
+        return 0;
+      }
+
+      return count || 0;
+    } catch (error) {
+      console.error('Error fetching parts count:', error);
+      return 0;
+    }
+  };
+
+  // Fetch parts from Supabase with manufacturer data and pagination
+  const fetchParts = async (page: number = 1): Promise<void> => {
+    try {
+      if (page === 1) {
+        setLoading(true);
+      } else {
+        setPaginationLoading(true);
+      }
+      
+      const startIndex = (page - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage - 1;
+
+      // Get total count if we don't have it or it's the first page
+      if (totalParts === 0 || page === 1) {
+        const count = await fetchTotalPartsCount();
+        setTotalParts(count);
+        setTotalPages(Math.ceil(count / itemsPerPage));
+      }
       
       const { data, error } = await supabase
         .from('parts')
@@ -94,6 +134,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
             manufacturer
           )
         `)
+        .range(startIndex, endIndex)
         .order('part_number');
 
       if (error) {
@@ -103,9 +144,11 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
       }
 
       if (!data || data.length === 0) {
-        console.log('No parts found in database');
-        setParts([]);
-        setFilteredParts([]);
+        if (page === 1) {
+          console.log('No parts found in database');
+          setParts([]);
+          setFilteredParts([]);
+        }
         return;
       }
 
@@ -125,14 +168,24 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
         manufacturer: item.manufacturer
       }));
 
-      console.log('Successfully loaded parts:', typedParts.length);
-      setParts(typedParts);
-      setFilteredParts(typedParts);
+      console.log(`Successfully loaded page ${page}:`, typedParts.length, 'parts');
+      
+      if (page === 1) {
+        setParts(typedParts);
+        setFilteredParts(typedParts);
+      } else {
+        // Append to existing parts for pagination
+        setParts(prev => [...prev, ...typedParts]);
+        setFilteredParts(prev => [...prev, ...typedParts]);
+      }
+
+      setCurrentPage(page);
     } catch (error) {
       console.error('Network error fetching parts:', error);
       alert('Network error: Unable to connect to database. Please check your internet connection.');
     } finally {
       setLoading(false);
+      setPaginationLoading(false);
     }
   };
 
@@ -171,9 +224,37 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
     }
   };
 
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > totalPages || page === currentPage) return;
+    
+    // Reset parts and fetch new page
+    setParts([]);
+    setFilteredParts([]);
+    fetchParts(page);
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      handlePageChange(currentPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      handlePageChange(currentPage - 1);
+    }
+  };
+
+  const loadMoreParts = () => {
+    if (currentPage < totalPages && !paginationLoading) {
+      fetchParts(currentPage + 1);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
-      await fetchParts();
+      await fetchParts(1); // Load first page
       await fetchManufacturers();
       setTimeout(() => {
         fetchUserDiscount();
@@ -391,18 +472,156 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
           </div>
         </div>
 
-        {/* Results Summary */}
+        {/* Results Summary with Pagination Info */}
         <div style={{ marginBottom: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <p style={{ fontSize: '1.125rem', fontWeight: '500', color: '#374151' }}>
-              Showing <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{filteredParts.length}</span> of <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{parts.length}</span> parts
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <p style={{ fontSize: '1.125rem', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+                Showing <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{filteredParts.length}</span> of <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{totalParts}</span> parts
+              </p>
+              <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                Page <span style={{ fontWeight: '600' }}>{currentPage}</span> of <span style={{ fontWeight: '600' }}>{totalPages}</span> • Loaded <span style={{ fontWeight: '600' }}>{parts.length}</span> parts
+              </p>
+            </div>
             {filteredParts.length > 0 && searchTerm && (
               <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
                 Results for "{searchTerm}"
               </div>
             )}
           </div>
+        </div>
+
+        {/* Pagination Controls */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
+          border: '1px solid #e5e7eb',
+          padding: '20px',
+          marginBottom: '32px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              onClick={handlePreviousPage}
+              disabled={currentPage === 1}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: '1px solid #e5e7eb',
+                backgroundColor: currentPage === 1 ? '#f9fafb' : 'white',
+                color: currentPage === 1 ? '#9ca3af' : '#374151',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <ChevronLeft size={16} />
+              Previous
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {/* Page Numbers */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => handlePageChange(pageNum)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #e5e7eb',
+                      backgroundColor: pageNum === currentPage ? '#2563eb' : 'white',
+                      color: pageNum === currentPage ? 'white' : '#374151',
+                      fontSize: '0.875rem',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      minWidth: '40px',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: '1px solid #e5e7eb',
+                backgroundColor: currentPage === totalPages ? '#f9fafb' : 'white',
+                color: currentPage === totalPages ? '#9ca3af' : '#374151',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              Next
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          {/* Load More Button */}
+          {currentPage < totalPages && (
+            <button
+              onClick={loadMoreParts}
+              disabled={paginationLoading}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: 'white',
+                border: 'none',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                cursor: paginationLoading ? 'not-allowed' : 'pointer',
+                opacity: paginationLoading ? 0.7 : 1,
+                transition: 'all 0.2s'
+              }}
+            >
+              {paginationLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <Plus size={16} />
+                  Load More Parts
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Parts Grid */}
@@ -695,7 +914,7 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
         </div>
 
         {/* No Results State */}
-        {filteredParts.length === 0 && (
+        {filteredParts.length === 0 && !loading && (
           <div style={{ textAlign: 'center', padding: '64px 0' }}>
             <div style={{
               backgroundColor: 'white',
@@ -750,6 +969,38 @@ const PartsSearch: React.FC<PartsSearchProps> = ({ onAddToCart, cartItems = [], 
                 Clear All Filters
               </button>
             </div>
+          </div>
+        )}
+
+        {/* End of current page indicator */}
+        {filteredParts.length > 0 && currentPage < totalPages && (
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
+            border: '1px solid #e5e7eb',
+            padding: '24px',
+            marginTop: '32px',
+            textAlign: 'center'
+          }}>
+            <p style={{ color: '#6b7280', marginBottom: '16px' }}>
+              You've reached the end of page {currentPage}. There are {totalPages - currentPage} more pages with {totalParts - parts.length} additional parts.
+            </p>
+            <button
+              onClick={handleNextPage}
+              style={{
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                color: 'white',
+                borderRadius: '8px',
+                fontWeight: '600',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              Go to Next Page
+            </button>
           </div>
         )}
       </div>
