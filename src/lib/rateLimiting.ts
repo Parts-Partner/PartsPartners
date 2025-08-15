@@ -380,7 +380,7 @@ export const rateLimitUtils = {
       detail: { type, message, retryAfter: error.getRetryAfterSeconds() }
     }));
   }
-};;
+}
 
 // =============================================================================
 // CLEANUP ON APP SHUTDOWN
