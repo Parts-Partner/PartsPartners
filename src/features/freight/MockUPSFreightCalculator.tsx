@@ -22,7 +22,7 @@ export interface CartItemLite {
 }
 
 export interface FreightCalculatorProps {
-  /** Optional: if provided, we’ll estimate weight/dimensions for pricing */
+  /** Optional: if provided, we'll estimate weight/dimensions for pricing */
   cartItems?: CartItemLite[];
   /** Called when a shipping option is picked */
   onSelect?: (svc: UPSService) => void;
@@ -213,7 +213,7 @@ const MockUPSFreightCalculator: React.FC<FreightCalculatorProps> = ({ cartItems,
           {loading ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-              Getting Rates…
+              Getting Rates...
             </>
           ) : (
             <>
@@ -242,7 +242,7 @@ const MockUPSFreightCalculator: React.FC<FreightCalculatorProps> = ({ cartItems,
       <div className="mb-5 p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
         <div className="font-medium mb-1">Package Estimate</div>
         <div>Weight: {pkg.weight.toFixed(1)} lbs</div>
-        <div>Dims: {pkg.length}" × {pkg.width}" × {pkg.height}"</div>
+        <div>Dims: {pkg.length}&quot; × {pkg.width}&quot; × {pkg.height}&quot;</div>
         <div>Service Type: {pkg.isLTL ? 'LTL Freight' : 'Small Package'}</div>
         {pkg.hazmat && <div className="text-orange-600 font-medium">⚠ Hazmat surcharge applies</div>}
       </div>
