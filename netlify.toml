@@ -11,15 +11,6 @@
   REACT_APP_SENTRY_ENVIRONMENT = "production"
   REACT_APP_GA_MEASUREMENT_ID = "G-3T4FZFWM9J"
 
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
-
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-
 [[redirects]]
   from = "/*"
   to = "/index.html"
