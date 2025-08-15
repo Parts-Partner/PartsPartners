@@ -7,6 +7,9 @@
   SKIP_PREFLIGHT_CHECK = "true"
   TSC_COMPILE_ON_ERROR = "true"
   SECRETS_SCAN_ENABLED = "false"
+  REACT_APP_SENTRY_DSN = "https://35ab290d698fd51da71555c2c1d17983@o4509847852089344.ingest.us.sentry.io/4509847853989888"
+  REACT_APP_SENTRY_ENVIRONMENT = "production"
+  REACT_APP_GA_MEASUREMENT_ID = "G-3T4FZFWM9J"
 
 [functions]
   directory = "netlify/functions"
