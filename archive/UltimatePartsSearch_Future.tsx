@@ -4,7 +4,7 @@ import {
   Lightbulb, Mic, MicOff, Camera, Upload, Brain, TrendingUp, Target,
   Volume2, VolumeX, Play, Pause, RotateCcw
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from 'services/supabaseClient';
 
 // TypeScript interfaces
 interface Manufacturer {

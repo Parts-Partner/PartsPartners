@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, Phone, Building2, X, Search, Users, Filter } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from 'services/supabaseClient';
 
 // TypeScript interfaces
 interface Technician {

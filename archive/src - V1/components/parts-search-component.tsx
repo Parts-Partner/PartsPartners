@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Plus, Minus, ShoppingCart, ChevronDown, X } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from 'services/supabaseClient';
 
 // TypeScript interfaces
 interface Manufacturer {
