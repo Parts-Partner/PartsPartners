@@ -3,6 +3,7 @@ import React, { createContext, useContext, useMemo, useState } from 'react';
 import type { Part } from 'services/partsService';
 import { calcDiscounted } from 'lib/pricing';
 import { useAuth } from 'context/AuthContext';
+import { supabase } from 'services/supabaseClient';
 
 export interface CartItem extends Part {
   quantity: number; unit_price: number; discounted_price: number; line_total: number;
@@ -10,8 +11,8 @@ export interface CartItem extends Part {
 
 interface CartCtx {
   items: CartItem[];
-  add: (part: Part, qty?: number) => void;
-  updateQty: (id: string, qty: number) => void;
+  add: (part: Part, qty?: number) => Promise<void>;
+  updateQty: (id: string, qty: number) => Promise<void>;
   remove: (id: string) => void;
   clear: () => void;
   subtotal: number; count: number;
@@ -25,24 +26,65 @@ export const useCart = () => {
 };
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
 
-  const add = (part: Part, qty = 1) => {
-    const unit = typeof part.list_price === 'string' ? parseFloat(part.list_price) : part.list_price;
-    const disc = calcDiscounted(unit, profile?.discount_percentage || 0);
-    setItems(prev => {
-      const existing = prev.find(i => i.id === part.id);
-      if (existing) {
-        const quantity = existing.quantity + qty;
-        return prev.map(i => i.id === part.id ? { ...i, quantity, line_total: quantity * disc } : i);
-      }
-      return [...prev, { ...part, quantity: qty, unit_price: unit, discounted_price: disc, line_total: disc * qty }];
-    });
+  const add = async (part: Part, qty = 1) => {
+    if (!user?.id) {
+      console.error('User must be logged in to add items to cart');
+      return;
+    }
+
+    try {
+      // Call our secure pricing function
+      const { data: pricingData, error } = await supabase
+        .rpc('calculate_secure_pricing', {
+          part_id_input: part.id,
+          user_id_input: user.id,
+          quantity_input: qty
+        });
+
+      if (error) throw error;
+
+      const { unit_price, line_total } = pricingData;
+
+      setItems(prev => {
+        const existing = prev.find(i => i.id === part.id);
+        if (existing) {
+          const newQuantity = existing.quantity + qty;
+          return prev.map(i => 
+            i.id === part.id 
+              ? { ...i, quantity: newQuantity, line_total: unit_price * newQuantity }
+              : i
+          );
+        }
+        return [...prev, { 
+          ...part, 
+          quantity: qty, 
+          unit_price: parseFloat(part.list_price as string), 
+          discounted_price: unit_price, 
+          line_total 
+        }];
+      });
+    } catch (error) {
+      console.error('Failed to add item to cart:', error);
+    }
   };
 
-  const updateQty = (id: string, qty: number) => {
-    setItems(prev => qty <= 0 ? prev.filter(i => i.id !== id) : prev.map(i => i.id === id ? { ...i, quantity: qty, line_total: i.discounted_price * qty } : i));
+  const updateQty = async (id: string, qty: number) => {
+    if (qty <= 0) {
+      setItems(prev => prev.filter(i => i.id !== id));
+      return;
+    }
+
+    // For now, just update quantity using existing discounted_price
+    setItems(prev => 
+      prev.map(i => 
+        i.id === id 
+          ? { ...i, quantity: qty, line_total: i.discounted_price * qty }
+          : i
+      )
+    );
   };
 
   const remove = (id: string) => setItems(prev => prev.filter(i => i.id !== id));

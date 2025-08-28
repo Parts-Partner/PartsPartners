@@ -1,4 +1,4 @@
-// src/features/parts/ProductListingPage.tsx - Enhanced with rate limiting
+// src/features/parts/ProductListingPage.tsx - Feature-parity + resiliency hardening + Hero Banner
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { debounce } from 'lodash';
@@ -19,10 +19,30 @@ import { X } from 'lucide-react';
 
 // --- helpers --------------------------------------------------------------
 const PAGE_SIZES = [12, 24, 48];
+const SEARCH_TIMEOUT_MS = 12000;
 
 type SearchPayload = { q?: string; category?: string; manufacturerId?: string };
 
-export const ProductListingPage: React.FC = () => {
+function withTimeout<T>(p: Promise<T>, ms = SEARCH_TIMEOUT_MS): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`SEARCH_TIMEOUT_${ms}ms`)), ms);
+    p.then(v => { clearTimeout(t); resolve(v); })
+     .catch(e => { clearTimeout(t); reject(e); });
+  });
+}
+
+function normalizeFilter(val?: string | null): string | undefined {
+  if (val == null) return undefined;
+  const s = String(val).trim().toLowerCase();
+  return s === '' || s === 'all' ? undefined : (val as string);
+}
+
+// --- types ----------------------------------------------------------------
+interface ProductListingPageProps {
+  onNav?: (page: string) => void;
+}
+
+export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav }) => {
   const { add, updateQty, items } = useCart();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -47,15 +67,19 @@ export const ProductListingPage: React.FC = () => {
 
   // Create search params for React Query - only when we have a real search
   const searchParams = useMemo(() => {
-    const hasRealSearch = searched && q.trim().length > 0;
-    return hasRealSearch ? {
+    const ready = searched && q.trim().length > 0; // keep your original logic
+    const params = ready ? {
       query: q.trim(),
-      category: category === 'all' ? 'all' : category,
-      manufacturerId: manufacturerId === 'all' ? 'all' : manufacturerId
+      category,
+      manufacturerId
     } : null;
+
+    console.log('🔧 searchParams computed', { ready, searched, q: q.trim(), params });
+    return params;
   }, [q, category, manufacturerId, searched]);
 
-  // Rate limit countdown timer
+
+  // Rate limit countdown timer (now with auto-refetch at 0)
   useEffect(() => {
     if (retryAfter > 0) {
       const timer = setInterval(() => {
@@ -63,12 +87,13 @@ export const ProductListingPage: React.FC = () => {
           if (prev <= 1) {
             setRateLimited(false);
             setRateLimitMessage('');
+            // proactively refetch when window ends
+            setTimeout(() => { refetch(); }, 0);
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
-      
       return () => clearInterval(timer);
     }
   }, [retryAfter]);
@@ -77,9 +102,9 @@ export const ProductListingPage: React.FC = () => {
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: listCategories,
-    staleTime: 30 * 60 * 1000, // 30 minutes
-    gcTime: 60 * 60 * 1000, // 1 hour
-    refetchOnMount: false, // Don't refetch on every mount
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+    refetchOnMount: false,
     refetchOnReconnect: false,
   });
 
@@ -87,9 +112,9 @@ export const ProductListingPage: React.FC = () => {
   const { data: manufacturers = [] } = useQuery({
     queryKey: ['manufacturers'],
     queryFn: listManufacturers,
-    staleTime: 30 * 60 * 1000, // 30 minutes
-    gcTime: 60 * 60 * 1000, // 1 hour
-    refetchOnMount: false, // Don't refetch on every mount
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+    refetchOnMount: false,
     refetchOnReconnect: false,
   });
 
@@ -100,55 +125,81 @@ export const ProductListingPage: React.FC = () => {
     error,
     refetch,
     isFetching
-  } = useQuery({
+} = useQuery({
     queryKey: ['parts-search', searchParams],
     queryFn: async () => {
-      if (!searchParams) return [];
-      
+      if (!searchParams) {
+        console.log('🔎 SKIP: no searchParams');
+        return [];
+      }
+
       try {
-        // Clear any previous rate limit state
+        // Reset rate limit flags before every attempt
         setRateLimited(false);
         setRateLimitMessage('');
-        
-        // Use the rate-limited cached search service
-        const results = await searchPartsWithCache(
-          searchParams.query,
-          searchParams.category,
-          searchParams.manufacturerId
+
+        // Normalize filters (prevent empty string/null mismatch in cache keys)
+        const normCategory = normalizeFilter(searchParams.category);
+        const normMfg      = normalizeFilter(searchParams.manufacturerId);
+
+        console.log('🔍 QUERY START', {
+          q: searchParams.query,
+          normCategory,
+          normMfg,
+        });
+
+        // Add timeout back but with detailed logging
+        const results = await withTimeout(
+          (async () => {
+            console.log('🔍 About to call searchPartsWithCache');
+            const startTime = Date.now();
+            const result = await searchPartsWithCache(
+              searchParams.query,
+              normCategory,
+              normMfg
+            );
+            console.log('🔍 searchPartsWithCache completed in', Date.now() - startTime, 'ms');
+            return result;
+          })(),
+          12000
         );
-        
-        return results;
-        
-      } catch (error) {
-        // Handle rate limiting errors
-        if (rateLimitUtils.isRateLimitError(error)) {
-          const rateLimitError = error as RateLimitError;
+
+        console.log('✅ QUERY OK', { count: results?.length ?? -1 });
+        return Array.isArray(results) ? results : [];
+
+      } catch (err) {
+        // Handle rate-limit errors gracefully
+        if (rateLimitUtils.isRateLimitError(err)) {
+          const rateLimitError = err as RateLimitError;
           setRateLimited(true);
-          setRateLimitMessage(rateLimitUtils.getRateLimitMessage('search', rateLimitError));
+          setRateLimitMessage(
+            rateLimitUtils.getRateLimitMessage('search', rateLimitError)
+          );
           setRetryAfter(rateLimitError.getRetryAfterSeconds());
-          
-          console.warn(`🚫 ProductListing search rate limited: ${rateLimitError.message}`);
-          
-          // Return empty array instead of throwing to prevent React Query error state
-          return [];
+
+          console.warn('🚫 Rate limited', {
+            message: rateLimitError.message,
+            retryAfter: rateLimitError.getRetryAfterSeconds(),
+          });
+
+          return []; // suppress error state in React Query
         }
-        
-        // Re-throw other errors for React Query to handle
-        throw error;
+
+        console.error('❌ QUERY FAIL', err);
+        throw err; // bubble other errors to React Query
       }
     },
-    enabled: !!searchParams && !rateLimited, // Don't fetch if rate limited
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: (failureCount, error) => {
-      // Don't retry rate limit errors
-      if (rateLimitUtils.isRateLimitError(error)) {
-        return false;
-      }
-      return failureCount < 1; // Only retry once for other errors
+    enabled: !!searchParams && !rateLimited, // block if no params or rate limited
+    staleTime: 2 * 60 * 1000,  // 2 minutes
+    gcTime: 10 * 60 * 1000,    // 10 minutes
+    retry: (failureCount, err) => {
+      // Don't retry on rate-limit
+      if (rateLimitUtils.isRateLimitError(err)) return false;
+      return failureCount < 1;
     },
     retryDelay: 1000,
   });
+
 
   // Manual search function for immediate execution
   const executeSearch = useCallback((payload: SearchPayload) => {
@@ -168,8 +219,8 @@ export const ProductListingPage: React.FC = () => {
     setCategory(nextCat);
     setManufacturerId(nextMfg);
     setPage(1); // reset paging on every new search
-    
-    // Mark as searched if we have a query
+
+    // Mark as searched if we have a query (keep original behavior)
     if (nextQ.length > 0) {
       setSearched(true);
     }
@@ -194,15 +245,24 @@ export const ProductListingPage: React.FC = () => {
     setSort('relevance');
     setPage(1);
     setSearched(false);
-    
+
     // Clear rate limiting state
     setRateLimited(false);
     setRateLimitMessage('');
     setRetryAfter(0);
-    
+
     // Clear the search cache to ensure fresh results next time
     queryClient.removeQueries({ queryKey: ['parts-search'] });
   }, [debouncedFilterSearch, queryClient]);
+
+  // Auto-enable search mode when user types at least 2 chars
+  useEffect(() => {
+    if (q.trim().length >= 2 && !searched) {
+      console.log('🟢 Auto-enabling search mode (searched=true)');
+      setSearched(true);
+    }
+  }, [q, searched]);
+
 
   // Listen for Header-dispatched searches
   useEffect(() => {
@@ -211,10 +271,10 @@ export const ProductListingPage: React.FC = () => {
       console.log('📡 Received search event:', payload);
       executeSearch(payload);
     };
-    
+
     window.addEventListener('pp:search' as any, handler);
     window.addEventListener('pp:do-search' as any, handler);
-    
+
     return () => {
       window.removeEventListener('pp:search' as any, handler);
       window.removeEventListener('pp:do-search' as any, handler);
@@ -267,9 +327,15 @@ export const ProductListingPage: React.FC = () => {
   // client-side sorting (optimized with useMemo) ----------------------------
   const sorted = useMemo(() => {
     if (!parts || parts.length === 0) return [];
-    
-    // Don't sort on every render if sort hasn't changed
+
     const base = [...parts];
+    const num = (n: number | string | null | undefined) => {
+      if (typeof n === 'number') return n;
+      if (!n) return 0;
+      const x = parseFloat(String(n));
+      return isNaN(x) ? 0 : x;
+    };
+
     switch (sort) {
       case 'price_asc':
         return base.sort((a,b) => (num(a.list_price) - num(b.list_price)));
@@ -286,7 +352,7 @@ export const ProductListingPage: React.FC = () => {
   const total = sorted.length;
   const lastPage = Math.max(1, Math.ceil(total / pageSize));
   const clampedPage = Math.min(page, lastPage);
-  
+
   const pageSlice = useMemo(() => {
     if (sorted.length === 0) return [];
     const start = (clampedPage - 1) * pageSize;
@@ -297,19 +363,11 @@ export const ProductListingPage: React.FC = () => {
     if (page > lastPage && lastPage > 0) setPage(lastPage); 
   }, [lastPage, page]);
 
-  // utilities --------------------------------------------------------------
-  function num(n: number | string | null | undefined) {
-    if (typeof n === 'number') return n;
-    if (!n) return 0;
-    const x = parseFloat(String(n));
-    return isNaN(x) ? 0 : x;
-  }
-
   // handlers ---------------------------------------------------------------
   const applyFilters = useCallback(() => {
     executeSearch({ q, category, manufacturerId });
   }, [executeSearch, q, category, manufacturerId]);
-  
+
   const clearAll = useCallback(() => {
     setCategory('all');
     setManufacturerId('all');
@@ -320,39 +378,52 @@ export const ProductListingPage: React.FC = () => {
     }
   }, [executeSearch, q]);
 
-  // Performance monitoring (development only)
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📊 PLP Performance:', {
-        partsCount: parts.length,
-        isLoading,
-        isFetching,
-        searchParams,
-        searched,
-        rateLimited,
-        cacheHit: !isLoading && !isFetching && parts.length > 0
-      });
-    }
-  }, [parts.length, isLoading, isFetching, searchParams, searched, rateLimited]);
-
   // render -----------------------------------------------------------------
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      {/* Homepage Promos - Show when not searched yet */}
+      {/* Hero Banner and Homepage Promos - Show when not searched yet */}
       {!searched && (
-        <div className="mb-12">
-          <HomePromos
-            onRegister={() => {
-              window.dispatchEvent(new CustomEvent('pp:navigate', { detail: { page: 'contact' } }));
-            }}
-            onFindTech={() => {
-              window.dispatchEvent(new CustomEvent('pp:openTechFinder'));
-            }}
-            onBulk={() => {
-              window.dispatchEvent(new CustomEvent('pp:openBulkOrder'));
-            }}
-          />
-        </div>
+        <>
+          {/* Hero Banner with Clickable Register Button */}
+          <div className="mb-8 relative">
+            <img
+              src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/public/assets/Hero_Banner_ServiceTechs_Join_The_Team.png"
+              alt="Service Technicians - Join The Team"
+              className="w-full h-auto rounded-2xl shadow-lg"
+            />
+            {/* Invisible clickable area over the "Register Now" button in the image */}
+            <button
+              onClick={() => {
+                // Navigate to login page - same as existing HomePromos onRegister handler
+                window.dispatchEvent(new CustomEvent('pp:navigate', { detail: { page: 'contact' } }));
+              }}
+              className="absolute bg-transparent hover:bg-white/10 transition-colors duration-200 rounded-lg"
+              style={{
+                left: '5.5%',
+                top: '47.5%',
+                width: '19%',
+                height: '17%'
+              }}
+              aria-label="Register Now - Join the Parts Partners team"
+              title="Click to register and join our team"
+            />
+          </div>
+
+          {/* Homepage Promos */}
+          <div className="mb-12">
+            <HomePromos
+              onRegister={() => {
+                window.dispatchEvent(new CustomEvent('pp:navigate', { detail: { page: 'contact' } }));
+              }}
+              onFindTech={() => {
+                window.dispatchEvent(new CustomEvent('pp:openTechFinder'));
+              }}
+              onBulk={() => {
+                window.dispatchEvent(new CustomEvent('pp:openBulkOrder'));
+              }}
+            />
+          </div>
+        </>
       )}
 
       {/* Rate limit notification banner */}
@@ -515,7 +586,7 @@ export const ProductListingPage: React.FC = () => {
               parts={pageSlice}
               onAdd={add}
               onUpdateQty={updateQty}
-              getQty={inCartQty}
+              getQty={(id) => items.find((i) => i.id === id)?.quantity || 0}
               loading={isLoading || isFetching}
               discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
               onView={(p) => {
@@ -524,28 +595,28 @@ export const ProductListingPage: React.FC = () => {
             />
 
             {/* Pagination */}
-            {total > pageSize && !isLoading && !isFetching && !rateLimited && (
+            {sorted.length > pageSize && !isLoading && !isFetching && !rateLimited && (
               <div className="mt-6 flex items-center justify-between">
                 <div className="text-sm text-gray-600">
-                  Page <span className="font-medium text-gray-900">{clampedPage}</span> of {lastPage}
-                  {total > 0 && (
+                  Page <span className="font-medium text-gray-900">{page}</span> of {Math.max(1, Math.ceil(sorted.length / pageSize))}
+                  {sorted.length > 0 && (
                     <span className="ml-2">
-                      ({((clampedPage - 1) * pageSize) + 1}-{Math.min(clampedPage * pageSize, total)} of {total.toLocaleString()} results)
+                      ({((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, sorted.length)} of {sorted.length.toLocaleString()} results)
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     className="px-3 py-2 rounded-lg border disabled:opacity-50 hover:bg-gray-50 transition-colors"
-                    disabled={clampedPage <= 1}
+                    disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
                     Previous
                   </button>
                   <button
                     className="px-3 py-2 rounded-lg border disabled:opacity-50 hover:bg-gray-50 transition-colors"
-                    disabled={clampedPage >= lastPage}
-                    onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+                    disabled={page >= Math.max(1, Math.ceil(sorted.length / pageSize))}
+                    onClick={() => setPage((p) => Math.min(Math.max(1, Math.ceil(sorted.length / pageSize)), p + 1))}
                   >
                     Next
                   </button>

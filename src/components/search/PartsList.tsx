@@ -6,8 +6,8 @@ interface PartsListProps {
   parts: Part[];
   loading: boolean;
   discountPct: number;
-  onAdd: (p: Part, qty?: number) => void;
-  onUpdateQty: (id: string, qty: number) => void;
+  onAdd: (p: Part, qty?: number) => Promise<void>;
+  onUpdateQty: (id: string, qty: number) => Promise<void>;
   getQty: (id: string) => number;
   onView?: (p: Part) => void;
 }
@@ -94,7 +94,7 @@ export const PartsList: React.FC<PartsListProps> = ({
                   <button
                     type="button"
                     className="px-3 py-2 border rounded"
-                    onClick={() => onUpdateQty(p.id, Math.max(0, qty - 1))}
+                    onClick={async () => await onUpdateQty(p.id, Math.max(0, qty - 1))}
                   >
                     -
                   </button>
@@ -102,17 +102,17 @@ export const PartsList: React.FC<PartsListProps> = ({
                   <button
                     type="button"
                     className="px-3 py-2 border rounded"
-                    onClick={() => onUpdateQty(p.id, qty + 1)}
+                    onClick={async () => await onUpdateQty(p.id, qty + 1)}
                   >
                     +
                   </button>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  className="px-4 py-2 rounded bg-slate-900 text-white hover:bg-black"
-                  onClick={() => onAdd(p, 1)}
-                >
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded bg-slate-900 text-white hover:bg-black"
+                    onClick={async () => await onAdd(p, 1)}
+                  >
                   Add to cart
                 </button>
               )}

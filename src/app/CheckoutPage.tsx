@@ -7,7 +7,7 @@ import PaymentFlow from 'features/checkout/PaymentFlow';
 
 interface UPSService { service_code: string; service_name: string; total_charges: number; customer_rate: number; transit_days?: string; delivery_date?: string }
 
-const CheckoutPage: React.FC<{ onBack: ()=>void; onComplete: ()=>void }> = ({ onBack, onComplete }) => {
+const CheckoutPage: React.FC<{ onBack: ()=>void; onComplete: (orderId: string)=>void }> = ({ onBack, onComplete }) => {
   const { items, subtotal, clear } = useCart();
   const { profile } = useAuth();
   const [selectedFreight, setSelectedFreight] = useState<UPSService | null>(null);
@@ -19,10 +19,10 @@ const CheckoutPage: React.FC<{ onBack: ()=>void; onComplete: ()=>void }> = ({ on
     setShowPaymentFlow(true);
   };
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = (orderId: string) => {
     clear();
     setShowPaymentFlow(false);
-    onComplete();
+    onComplete(orderId);
   };
 
   const handlePaymentClose = () => {

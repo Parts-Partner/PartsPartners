@@ -26,7 +26,7 @@ interface PaymentFlowProps {
   cartItems: CartItem[];
   cartTotal: number;
   userDiscount: number;
-  onSuccess: () => void;
+  onSuccess: (orderId: string) => void; // ✅ not void
   onClose: () => void;
   userProfile: any;
 }
@@ -246,6 +246,11 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
       if (poError) throw poError;
 
+      // ✅ Extra safety check here
+      if (!poData) {
+        throw new Error('No purchase order data returned from insert');
+      }
+
       // Create purchase order items
       const poItems = cartItems.map(item => ({
         po_id: poData.id,
@@ -264,7 +269,7 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
       if (itemsError) throw itemsError;
 
       setPoNumber(newPONumber);
-      return newPONumber;
+      return poData.id;
 
     } catch (error: any) {
       console.error('Error creating purchase order:', error);
@@ -275,34 +280,41 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
   // Handle Credit Card Payment Success
   const handlePaymentSuccess = async (paymentIntentId: string) => {
-    const poNumber = await createPurchaseOrder({
+    const orderId = await createPurchaseOrder({
       paymentIntentId,
-      paymentStatus: 'paid'
+      paymentStatus: 'paid',
     });
 
-    if (poNumber) {
+    if (orderId) {
       setSuccess(true);
+
+      // Redirect back after showing success screen
       setTimeout(() => {
-        onSuccess();
+        onSuccess(orderId); // Pass the DB id up to parent
       }, 3000);
     }
   };
+
 
   // Handle Net 30 Submission
   const handleNet30Submit = async () => {
     setProcessing(true);
-    const poNumber = await createPurchaseOrder({
-      paymentStatus: 'pending'
+
+    const orderId = await createPurchaseOrder({
+      paymentStatus: 'pending',
     });
 
-    if (poNumber) {
+    if (orderId) {
       setSuccess(true);
+
       setTimeout(() => {
-        onSuccess();
+        onSuccess(orderId); // Pass the DB id up to parent
       }, 3000);
     }
+
     setProcessing(false);
   };
+
 
   // Success Screen
   if (success) {
