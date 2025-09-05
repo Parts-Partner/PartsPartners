@@ -90,10 +90,14 @@ exports.handler = async (event) => {
     if (manufacturerId && manufacturerId !== 'all') params.push(manufacturerId); // $4
     params.push(Number(limit)); // $5
 
-    const { data, error } = await supabaseAdmin.rpc('exec_sql', {
-      sql,
-      params
+    const { data, error } = await supabaseAdmin.rpc('search_parts', {
+    search_terms: searchTerms,
+    full_query: cleanQuery,
+    category: category && category !== 'all' ? category : null,
+    manufacturer_id: manufacturerId && manufacturerId !== 'all' ? manufacturerId : null,
+    limit_count: Number(limit)
     });
+
 
     if (error) {
       console.error('Search error:', error);
