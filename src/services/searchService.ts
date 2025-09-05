@@ -39,7 +39,8 @@ export async function searchPartsWithFacets(
       params.append('manufacturerId', manufacturerId);
     }
 
-    const response = await fetch(`/.netlify/functions/search-with-facets?${params.toString()}`);
+    // Use your original search endpoint
+    const response = await fetch(`/.netlify/functions/search?${params.toString()}`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);

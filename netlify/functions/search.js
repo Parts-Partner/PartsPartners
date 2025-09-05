@@ -1,4 +1,4 @@
-// search.js - Optimized with Postgres trigram similarity
+// Your exact original + facets only
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseAdmin = createClient(
@@ -8,12 +8,6 @@ const supabaseAdmin = createClient(
     auth: { autoRefreshToken: false, persistSession: false }
   }
 );
-
-// IMPORTANT: Make sure you’ve enabled pg_trgm extension and indexes in your DB:
-//   CREATE EXTENSION IF NOT EXISTS pg_trgm;
-//   CREATE INDEX IF NOT EXISTS parts_part_number_trgm_idx ON parts USING gin (part_number gin_trgm_ops);
-//   CREATE INDEX IF NOT EXISTS parts_description_trgm_idx ON parts USING gin (part_description gin_trgm_ops);
-//   CREATE INDEX IF NOT EXISTS manufacturers_name_trgm_idx ON manufacturers USING gin (manufacturer gin_trgm_ops);
 
 exports.handler = async (event) => {
   const headers = {
@@ -31,7 +25,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { q: query, category, manufacturerId, limit = 50 } =
+    const { q: query, category, manufacturerId, limit = 1000 } =
       event.queryStringParameters || {};
 
     if (!query || query.trim().length < 2) {
@@ -91,13 +85,12 @@ exports.handler = async (event) => {
     params.push(Number(limit)); // $5
 
     const { data, error } = await supabaseAdmin.rpc('search_parts', {
-    search_terms: searchTerms,
-    full_query: cleanQuery,
-    category: category && category !== 'all' ? category : null,
-    manufacturer_id: manufacturerId && manufacturerId !== 'all' ? manufacturerId : null,
-    limit_count: Number(limit)
+      search_terms: searchTerms,
+      full_query: cleanQuery,
+      category: category && category !== 'all' ? category : null,
+      manufacturer_id: manufacturerId && manufacturerId !== 'all' ? manufacturerId : null,
+      limit_count: Number(limit)
     });
-
 
     if (error) {
       console.error('Search error:', error);
@@ -108,10 +101,27 @@ exports.handler = async (event) => {
       };
     }
 
+    // Generate manufacturer facets from the results
+    const facetMap = new Map();
+    (data || []).forEach(part => {
+      if (part.manufacturer) {
+        const id = part.manufacturer_id;
+        const name = part.manufacturer;
+        const current = facetMap.get(id) || { id, name, count: 0 };
+        facetMap.set(id, { ...current, count: current.count + 1 });
+      }
+    });
+
+    const facets = Array.from(facetMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ data, count: data?.length || 0 })
+      body: JSON.stringify({ 
+        data: data || [], 
+        facets: facets,
+        count: data?.length || 0 
+      })
     };
 
   } catch (err) {
