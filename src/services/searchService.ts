@@ -1,19 +1,29 @@
 import type { Part } from 'services/partsService';
 
-export async function searchParts(
+interface SearchResponse {
+  data: Part[];
+  facets: Array<{
+    id: string;
+    name: string;
+    count: number;
+  }>;
+  count: number;
+}
+
+export async function searchPartsWithFacets(
   query: string,
   category?: string,
   manufacturerId?: string
-): Promise<Part[]> {
+): Promise<SearchResponse> {
   const cleanQuery = query?.trim();
   if (!cleanQuery || cleanQuery.length < 2) {
-    return [];
+    return { data: [], facets: [], count: 0 };
   }
 
   try {
     const params = new URLSearchParams({
       q: cleanQuery,
-      limit: '200'
+      limit: '1000'
     });
     
     if (category && category !== 'all') {
@@ -24,21 +34,26 @@ export async function searchParts(
       params.append('manufacturerId', manufacturerId);
     }
 
-    const response = await fetch(`/.netlify/functions/search?${params.toString()}`);
+    const response = await fetch(`/.netlify/functions/search-with-facets?${params.toString()}`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
     
     const result = await response.json();
-    return result.data || [];
+    return {
+      data: result.data || [],
+      facets: result.facets || [],
+      count: result.count || 0
+    };
 
   } catch (error) {
-    console.error('Search function error:', error);
-    return [];
+    console.error('Search with facets error:', error);
+    return { data: [], facets: [], count: 0 };
   }
 }
 
+// Keep existing functions for suggestions
 export async function getSearchSuggestions(query: string): Promise<Array<{
   type: 'part' | 'manufacturer';
   value: string;
