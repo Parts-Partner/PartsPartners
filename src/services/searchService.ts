@@ -39,7 +39,7 @@ export async function searchPartsWithFacets(
       params.append('manufacturerId', manufacturerId);
     }
 
-    // Use your original search endpoint
+    // CHANGE THIS: Use your existing search endpoint
     const response = await fetch(`/.netlify/functions/search?${params.toString()}`);
     
     if (!response.ok) {
