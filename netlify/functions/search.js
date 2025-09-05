@@ -1,51 +1,21 @@
+// search.js - Optimized with Postgres trigram similarity
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
   {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
+    auth: { autoRefreshToken: false, persistSession: false }
   }
 );
 
-// Simple fuzzy matching function
-function generateFuzzyVariants(term) {
-  const variants = [term];
-  
-  // Remove one character at each position (handles extra characters)
-  for (let i = 0; i < term.length; i++) {
-    variants.push(term.slice(0, i) + term.slice(i + 1));
-  }
-  
-  // Add one character at each position (handles missing characters)
-  const chars = 'abcdefghijklmnopqrstuvwxyz';
-  for (let i = 0; i <= term.length; i++) {
-    for (const char of chars) {
-      variants.push(term.slice(0, i) + char + term.slice(i));
-    }
-  }
-  
-  // Swap adjacent characters (handles transpositions)
-  for (let i = 0; i < term.length - 1; i++) {
-    variants.push(
-      term.slice(0, i) + 
-      term[i + 1] + 
-      term[i] + 
-      term.slice(i + 2)
-    );
-  }
-  
-  // Remove duplicates and filter by reasonable length
-  return [...new Set(variants)].filter(v => 
-    v.length >= 2 && v.length <= term.length + 2
-  );
-}
+// IMPORTANT: Make sure you’ve enabled pg_trgm extension and indexes in your DB:
+//   CREATE EXTENSION IF NOT EXISTS pg_trgm;
+//   CREATE INDEX IF NOT EXISTS parts_part_number_trgm_idx ON parts USING gin (part_number gin_trgm_ops);
+//   CREATE INDEX IF NOT EXISTS parts_description_trgm_idx ON parts USING gin (part_description gin_trgm_ops);
+//   CREATE INDEX IF NOT EXISTS manufacturers_name_trgm_idx ON manufacturers USING gin (manufacturer gin_trgm_ops);
 
-exports.handler = async (event, context) => {
-  // Enable CORS
+exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -57,15 +27,12 @@ exports.handler = async (event, context) => {
   }
 
   if (event.httpMethod !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
   try {
-    const { q: query, category, manufacturerId, limit = 1000 } = event.queryStringParameters || {};
+    const { q: query, category, manufacturerId, limit = 50 } =
+      event.queryStringParameters || {};
 
     if (!query || query.trim().length < 2) {
       return {
@@ -75,89 +42,58 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const cleanQuery = query.trim();
-    const searchTerms = cleanQuery.toLowerCase().split(/\s+/);
-    const fullSearchTerm = `%${cleanQuery.toLowerCase()}%`;
+    const cleanQuery = query.trim().toLowerCase();
+    const searchTerms = cleanQuery.split(/\s+/);
 
-    // Generate fuzzy variants for each search term
-    const allSearchVariants = [];
-    searchTerms.forEach(term => {
-      if (term.length >= 3) { // Only generate variants for terms 3+ chars
-        const variants = generateFuzzyVariants(term);
-        allSearchVariants.push(...variants);
-      } else {
-        allSearchVariants.push(term); // Short terms, no fuzzy matching
-      }
-    });
-
-    // Find manufacturer IDs that match search terms (including fuzzy variants)
-    const manufacturerPromises = allSearchVariants.map(term => 
-      supabaseAdmin
-        .from('manufacturers')
-        .select('id, manufacturer')
-        .ilike('manufacturer', `%${term}%`)
-    );
-
-    const manufacturerResults = await Promise.all(manufacturerPromises);
-    const allManufacturerIds = new Set();
-    manufacturerResults.forEach(result => {
-      result.data?.forEach(m => allManufacturerIds.add(m.id));
-    });
-
-    const manufacturerIds = Array.from(allManufacturerIds);
-
-    // Build comprehensive search query
-    let queryBuilder = supabaseAdmin
-      .from('parts')
-      .select(`
-        *,
-        manufacturer:manufacturer_id (
-          id,
-          manufacturer,
-          make
+    // Build raw SQL with trigram similarity
+    // Strategy:
+    //  - Match manufacturer name, part number, part description
+    //  - Rank by highest similarity
+    //  - Support multi-term (manufacturer + keyword/part number)
+    const sql = `
+      WITH manufacturer_matches AS (
+        SELECT id
+        FROM manufacturers
+        WHERE manufacturer % ANY($1)
+        ORDER BY GREATEST(${searchTerms.map((_, i) => `similarity(manufacturer, $1[${i + 1}])`).join(', ')}) DESC
+        LIMIT 20
+      )
+      SELECT 
+        p.*,
+        m.manufacturer,
+        GREATEST(
+          similarity(p.part_number, $2),
+          similarity(p.part_description, $2),
+          similarity(m.manufacturer, $2)
+        ) AS relevance
+      FROM parts p
+      JOIN manufacturers m ON p.manufacturer_id = m.id
+      WHERE 
+        (
+          p.part_number % $2 OR 
+          p.part_description % $2 OR
+          m.manufacturer % $2 OR
+          p.manufacturer_id IN (SELECT id FROM manufacturer_matches)
         )
-      `)
-      .limit(Number(limit));
+        ${category && category !== 'all' ? `AND p.category = $3` : ''}
+        ${manufacturerId && manufacturerId !== 'all' ? `AND p.manufacturer_id = $4` : ''}
+      ORDER BY relevance DESC
+      LIMIT $5;
+    `;
 
-    // Create OR conditions for multiple search strategies
-    const orConditions = [];
+    const params = [
+      searchTerms, // $1: array of search tokens
+      cleanQuery,  // $2: full query string
+    ];
 
-    // 1. Exact full query matches (highest priority)
-    orConditions.push(`part_number.ilike.${fullSearchTerm}`);
-    orConditions.push(`part_description.ilike.${fullSearchTerm}`);
+    if (category && category !== 'all') params.push(category); // $3
+    if (manufacturerId && manufacturerId !== 'all') params.push(manufacturerId); // $4
+    params.push(Number(limit)); // $5
 
-    // 2. Individual exact term matches
-    searchTerms.forEach(term => {
-      orConditions.push(`part_number.ilike.%${term}%`);
-      orConditions.push(`part_description.ilike.%${term}%`);
+    const { data, error } = await supabaseAdmin.rpc('exec_sql', {
+      sql,
+      params
     });
-
-    // 3. Fuzzy matching for individual terms
-    allSearchVariants.forEach(variant => {
-      if (variant !== variant.toLowerCase() || variant.length >= 3) {
-        orConditions.push(`part_number.ilike.%${variant}%`);
-        orConditions.push(`part_description.ilike.%${variant}%`);
-      }
-    });
-
-    // 4. Manufacturer matches (from fuzzy manufacturer search)
-    if (manufacturerIds.length > 0) {
-      orConditions.push(`manufacturer_id.in.(${manufacturerIds.join(',')})`);
-    }
-
-    // Apply the search conditions
-    queryBuilder = queryBuilder.or(orConditions.join(','));
-
-    // Apply additional filters
-    if (category && category !== 'all') {
-      queryBuilder = queryBuilder.eq('category', category);
-    }
-
-    if (manufacturerId && manufacturerId !== 'all') {
-      queryBuilder = queryBuilder.eq('manufacturer_id', manufacturerId);
-    }
-
-    const { data, error } = await queryBuilder;
 
     if (error) {
       console.error('Search error:', error);
@@ -168,30 +104,14 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Sort results by relevance (exact matches first)
-    const sortedData = (data || []).sort((a, b) => {
-      const aPartExact = a.part_number?.toLowerCase().includes(cleanQuery.toLowerCase()) ? 1 : 0;
-      const bPartExact = b.part_number?.toLowerCase().includes(cleanQuery.toLowerCase()) ? 1 : 0;
-      const aDescExact = a.part_description?.toLowerCase().includes(cleanQuery.toLowerCase()) ? 1 : 0;
-      const bDescExact = b.part_description?.toLowerCase().includes(cleanQuery.toLowerCase()) ? 1 : 0;
-      
-      const aScore = aPartExact * 2 + aDescExact;
-      const bScore = bPartExact * 2 + bDescExact;
-      
-      return bScore - aScore;
-    });
-
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ 
-        data: sortedData,
-        count: sortedData.length 
-      })
+      body: JSON.stringify({ data, count: data?.length || 0 })
     };
 
-  } catch (error) {
-    console.error('Function error:', error);
+  } catch (err) {
+    console.error('Function error:', err);
     return {
       statusCode: 500,
       headers,
