@@ -10,11 +10,16 @@ interface SearchResponse {
   count: number;
 }
 
+// Add this to src/services/searchService.ts
 export async function searchPartsWithFacets(
   query: string,
   category?: string,
   manufacturerId?: string
-): Promise<SearchResponse> {
+): Promise<{
+  data: any[];
+  facets: Array<{ id: string; name: string; count: number; }>;
+  count: number;
+}> {
   const cleanQuery = query?.trim();
   if (!cleanQuery || cleanQuery.length < 2) {
     return { data: [], facets: [], count: 0 };

@@ -1,4 +1,4 @@
-// src/features/parts/ProductListingPage.tsx - Enhanced with sidebar
+// src/features/parts/ProductListingPage.tsx - Enhanced with sidebar and filter
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { searchPartsWithFacets } from 'services/searchService';
@@ -7,7 +7,6 @@ import { useCart } from 'context/CartContext';
 import { useAuth, type UserProfile } from 'context/AuthContext';
 import { PartsList } from 'components/search/PartsList';
 import { NoResults } from 'components/search/NoResults';
-import { SearchBar } from 'components/search/SearchBarComponent';
 import HomePromos from 'components/home/HomePromos';
 import { X } from 'lucide-react';
 
@@ -35,6 +34,9 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
   const [category, setCategory] = useState('all');
   const [manufacturerId, setManufacturerId] = useState('all');
   const [hasSearched, setHasSearched] = useState(false);
+  
+  // Sidebar filter state
+  const [sidebarFilter, setSidebarFilter] = useState('');
 
   // UI state
   const [sort, setSort] = useState<'relevance' | 'price_asc' | 'price_desc' | 'in_stock'>('relevance');
@@ -48,7 +50,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
     staleTime: 30 * 60 * 1000,
   });
 
-  // Search query with facets - using your existing search but with facets
+  // Search query with facets
   const { 
     data: searchResponse = { data: [], facets: [], count: 0 }, 
     isLoading, 
@@ -93,6 +95,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
       setManufacturerId(searchManufacturer);
       setHasSearched(true);
       setCurrentPage(1);
+      setSidebarFilter(''); // Clear sidebar filter on new search
     }
   }, []);
 
@@ -121,6 +124,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
     setManufacturerId('all');
     setHasSearched(false);
     setCurrentPage(1);
+    setSidebarFilter('');
   }, []);
 
   // Listen for homepage reset - preserved
@@ -130,51 +134,52 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
     return () => window.removeEventListener('pp:goHome' as any, handleReset);
   }, [resetToHomepage]);
 
-  // Handle sidebar search
-  const handleSidebarSearch = useCallback((searchQuery: string) => {
-    setQuery(searchQuery);
-    setCurrentPage(1);
-    if (!hasSearched) setHasSearched(true);
-  }, [hasSearched]);
-
   // Handle manufacturer selection from sidebar
   const handleManufacturerSelect = useCallback((manufacturerIdSelected: string | null) => {
     setManufacturerId(manufacturerIdSelected || 'all');
     setCurrentPage(1);
   }, []);
 
-  // Sort results - preserved
-  const sortedResults = useMemo(() => {
-    if (!searchResponse.data.length) return [];
-
-    const sorted = [...searchResponse.data];
+  // Filter and sort results
+  const filteredAndSortedResults = useMemo(() => {
+    let filtered = [...searchResponse.data];
     
+    // Apply sidebar filter
+    if (sidebarFilter.trim()) {
+      const filterTerm = sidebarFilter.toLowerCase().trim();
+      filtered = filtered.filter(part => 
+        part.part_number?.toLowerCase().includes(filterTerm) ||
+        part.part_description?.toLowerCase().includes(filterTerm)
+      );
+    }
+    
+    // Apply sorting
     switch (sort) {
       case 'price_asc':
-        return sorted.sort((a, b) => {
+        return filtered.sort((a, b) => {
           const priceA = parseFloat(String(a.list_price || '0'));
           const priceB = parseFloat(String(b.list_price || '0'));
           return priceA - priceB;
         });
       case 'price_desc':
-        return sorted.sort((a, b) => {
+        return filtered.sort((a, b) => {
           const priceA = parseFloat(String(a.list_price || '0'));
           const priceB = parseFloat(String(b.list_price || '0'));
           return priceB - priceA;
         });
       case 'in_stock':
-        return sorted.sort((a, b) => Number(b.in_stock) - Number(a.in_stock));
+        return filtered.sort((a, b) => Number(b.in_stock) - Number(a.in_stock));
       default:
-        return sorted;
+        return filtered;
     }
-  }, [searchResponse.data, sort]);
+  }, [searchResponse.data, sidebarFilter, sort]);
 
-  // Pagination - preserved
-  const totalResults = sortedResults.length;
+  // Pagination - updated to use filtered results
+  const totalResults = filteredAndSortedResults.length;
   const totalPages = Math.ceil(totalResults / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const currentResults = sortedResults.slice(startIndex, endIndex);
+  const currentResults = filteredAndSortedResults.slice(startIndex, endIndex);
 
   // Active filter chips - adapted for sidebar
   const activeFilters = useMemo(() => {
@@ -202,9 +207,16 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
         });
       }
     }
+
+    if (sidebarFilter.trim()) {
+      filters.push({
+        label: `Filter: "${sidebarFilter}"`,
+        clear: () => setSidebarFilter('')
+      });
+    }
     
     return filters;
-  }, [category, manufacturerId, searchResponse.facets, hasSearched, refetch]);
+  }, [category, manufacturerId, sidebarFilter, searchResponse.facets, hasSearched, refetch]);
 
   // Cart quantity helper - preserved
   const getCartQuantity = useCallback((partId: string) => {
@@ -250,22 +262,31 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
 
   return (
     <div className="flex h-screen">
-      {/* NEW: Left Sidebar */}
+      {/* Left Sidebar */}
       <div className="w-80 bg-white border-r border-gray-200 p-6 h-full overflow-y-auto flex-shrink-0">
-        {/* Search within results */}
+        {/* Filter results input */}
         <div className="mb-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Search Parts</h3>
-          <SearchBar
-            value={query}
-            onChange={setQuery}
-            onSubmit={handleSidebarSearch}
-            placeholder="Search parts, manufacturers..."
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Filter Results</h3>
+          <input
+            type="text"
+            value={sidebarFilter}
+            onChange={(e) => {
+              setSidebarFilter(e.target.value);
+              setCurrentPage(1); // Reset to first page when filtering
+            }}
+            placeholder="Filter by part number or description..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
           />
         </div>
 
         {/* Results count */}
         <div className="mb-6 text-sm text-gray-600">
           {totalResults.toLocaleString()} parts found
+          {sidebarFilter.trim() && (
+            <div className="text-xs text-gray-500 mt-1">
+              (filtered from {searchResponse.data.length} total)
+            </div>
+          )}
         </div>
 
         {/* Active filter chips */}
@@ -277,7 +298,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
                 <button
                   key={index}
                   onClick={filter.clear}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-50 text-red-700 text-xs hover:bg-red-100 transition-colors"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-50 text-red-700 text-xs hover:bg-red-100 transition-colors mr-1 mb-1"
                 >
                   {filter.label}
                   <X className="w-3 h-3" />
@@ -357,7 +378,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
             
             {!isLoading && !error && (
               <div className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700 text-sm font-semibold">
-                &quot;{query}&quot;
+                "{query}"
               </div>
             )}
 
