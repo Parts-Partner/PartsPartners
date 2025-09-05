@@ -45,18 +45,33 @@ exports.handler = async (event, context) => {
     const cleanQuery = query.trim();
     const searchTerm = `%${cleanQuery.toLowerCase()}%`;
     
-    let queryBuilder = supabaseAdmin
-      .from('parts')
-      .select(`
-        *,
-        manufacturer:manufacturer_id (
-          id,
-          manufacturer,
-          make
-        )
-      `)
-      .or(`part_number.ilike.${searchTerm},part_description.ilike.${searchTerm}`)
-      .limit(Number(limit));
+// First, find manufacturer IDs that match the search term
+const { data: matchingManufacturers } = await supabaseAdmin
+  .from('manufacturers')
+  .select('id')
+  .ilike('manufacturer', searchTerm);
+
+const manufacturerIds = matchingManufacturers?.map(m => m.id) || [];
+
+// Then search parts including those manufacturer IDs
+let queryBuilder = supabaseAdmin
+  .from('parts')
+  .select(`
+    *,
+    manufacturer:manufacturer_id (
+      id,
+      manufacturer,
+      make
+    )
+  `)
+  .limit(Number(limit));
+
+// Build OR condition for part searches and manufacturer searches
+if (manufacturerIds.length > 0) {
+  queryBuilder = queryBuilder.or(`part_number.ilike.${searchTerm},part_description.ilike.${searchTerm},manufacturer_id.in.(${manufacturerIds.join(',')})`);
+} else {
+  queryBuilder = queryBuilder.or(`part_number.ilike.${searchTerm},part_description.ilike.${searchTerm}`);
+}
 
     if (category && category !== 'all') {
       queryBuilder = queryBuilder.eq('category', category);
