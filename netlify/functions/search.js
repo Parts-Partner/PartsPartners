@@ -104,12 +104,12 @@ exports.handler = async (event) => {
     // Generate manufacturer facets from the results
     const facetMap = new Map();
     (data || []).forEach(part => {
-      if (part.manufacturer) {
+    if (part.manufacturer && part.manufacturer_id) {
         const id = part.manufacturer_id;
         const name = part.manufacturer;
         const current = facetMap.get(id) || { id, name, count: 0 };
         facetMap.set(id, { ...current, count: current.count + 1 });
-      }
+    }
     });
 
     const facets = Array.from(facetMap.values()).sort((a, b) => a.name.localeCompare(b.name));
