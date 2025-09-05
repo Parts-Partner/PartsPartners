@@ -1,9 +1,9 @@
-// src/app/layout/Header.tsx - Fixed search event dispatching
+// src/app/layout/Header.tsx - Fixed implicit any type errors
 import React, { useEffect, useRef, useState } from 'react';
 import { ShoppingCart, User, LogOut } from 'lucide-react';
 import { useCart } from 'context/CartContext';
 import { useAuth } from 'context/AuthContext';
-import { SearchBar } from 'components/search/SearchBar';
+import { SearchBar, SearchBarRef } from 'components/search/SearchBarComponent';
 import { Filters } from 'components/search/Filters';
 import { listCategories, listManufacturers } from 'services/partsService';
 
@@ -21,7 +21,7 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
   const [manufacturers, setManufacturers] = useState<{ id: string; manufacturer: string }[]>([]);
 
   const [showCompact, setShowCompact] = useState(false);
-  const compactSearchRef = useRef<any>(null);
+  const compactSearchRef = useRef<SearchBarRef>(null);
 
   const [showBulkMain, setShowBulkMain] = useState(false);
   const [showBulkCompact, setShowBulkCompact] = useState(false);
@@ -117,13 +117,13 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
   const handleLogout = async () => {
     try {
       await logout();
-      onNav('search');
+      onNav('home'); // Navigate to home instead of search
     } catch (error) {
       console.error('Logout failed:', error);
     }
   };
 
-  // Handle homepage navigation
+  // Handle homepage navigation - updated to go to 'home' page
   const goToHomepage = () => {
     // Reset header search state
     setQ('');
@@ -136,11 +136,8 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
       compactSearchRef.current.clearSuggestions();
     }
     
-    // Navigate to search page
-    onNav('search');
-    
-    // Dispatch event to reset ProductListingPage to homepage state
-    window.dispatchEvent(new CustomEvent('pp:goHome'));
+    // Navigate to home page (not search)
+    onNav('home');
     
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -164,6 +161,15 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
     setBulkText('');
   };
 
+  // Handle search submit with explicit typing
+  const handleMainSearchSubmit = (val: string) => {
+    fireSearch({ q: val });
+  };
+
+  const handleCompactSearchSubmit = (val: string) => {
+    fireSearch({ q: val });
+  };
+
   const Brand = (
     <button
       onClick={goToHomepage}
@@ -176,7 +182,7 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
         className="h-24 w-24 rounded bg-white object-contain"
       />
       <div className="leading-tight text-left">
-        <div className="text-3xl font-extrabold tracking-tight text-slate-900">Parts Partners</div>
+        <div className="text-3xl font-bold tracking-tight text-slate-900">Parts Partners</div>
       </div>
     </button>
   );
@@ -198,7 +204,6 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
       </button>
 
       {/* Authentication Buttons */}
-           
       {user ? (
         // User is logged in - show profile and logout buttons
         <>
@@ -309,7 +314,11 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
               
               {/* Centered Search Bar */}
               <div className="flex-1 max-w-2xl mx-auto">
-                <SearchBar value={q} onChange={setQ} onSubmit={(val) => fireSearch({ q: val })} />
+                <SearchBar 
+                  value={q} 
+                  onChange={setQ} 
+                  onSubmit={handleMainSearchSubmit}
+                />
               </div>
               
               {/* Icons on Right */}
@@ -341,10 +350,7 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
         <div className="max-w-7xl mx-auto px-4 flex items-center gap-2 py-1">
           {/* Brand Text */}
           <button
-            onClick={() => {
-              onNav('search');
-              window.dispatchEvent(new CustomEvent('pp:goHome'));
-            }}
+            onClick={goToHomepage}
             className="group cursor-pointer"
           >
             <div className="font-bold text-white text-lg">Parts Partners</div>
@@ -357,7 +363,7 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
                 ref={compactSearchRef}
                 value={qCompact}
                 onChange={setQCompact}
-                onSubmit={(val) => fireSearch({ q: val })}
+                onSubmit={handleCompactSearchSubmit}
               />
             </div>
           </div>

@@ -1,10 +1,11 @@
-// src/app/MainShell.tsx - Clean version using external LoginPage
+// src/app/MainShell.tsx - Updated to use simplified search service
 import React, { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from 'context/AuthContext';
 import { CartProvider, useCart } from 'context/CartContext';
 import { Header } from 'app/layout/Header';
 import { Footer } from 'app/layout/Footer';
+import HomeMinimal from 'components/HomeMinimal';
 import BulkOrder from 'features/bulk/BulkOrder';
 import CSVImportSystem from 'features/csv/CSVImportSystem';
 import TechFinder from 'features/tech/TechFinder';
@@ -19,19 +20,21 @@ import { CartDrawer } from 'components/CartDrawer';
 import { ProductListingPage } from 'features/parts/ProductListingPage';
 import ProductDetailPage from 'features/parts/ProductDetailPage';
 import ProfilePage from './ProfilePage';
-// CLEAN: Import external LoginPage component
 import LoginPage from './auth/LoginPage';
 import ErrorBoundary from 'components/ErrorBoundary';
 import OrderConfirmation from 'components/OrderConfirmation';
 
-
-// Create React Query client
+// Create React Query client with simplified settings
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes
       gcTime: 10 * 60 * 1000, // 10 minutes
-      retry: 2,
+      retry: (failureCount, error: any) => {
+        // Don't retry rate limited requests
+        if (error?.message === 'RATE_LIMITED') return false;
+        return failureCount < 2; // Retry up to 2 times
+      },
       refetchOnWindowFocus: false,
     },
   },
@@ -39,9 +42,9 @@ const queryClient = new QueryClient({
 
 const ShellInner: React.FC = () => {
   const [page, setPage] = useState<
-    'search' | 'admin' | 'privacy' | 'terms' | 'cookies' | 'accessibility' |
+    'home' | 'search' | 'admin' | 'privacy' | 'terms' | 'cookies' | 'accessibility' |
     'shipping' | 'contact' | 'login' | 'checkout' | 'product' | 'profile' | 'order-confirmation'
-  >('search');
+  >('home');
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   const [showBulk, setShowBulk] = useState(false);
   const [showTech, setShowTech] = useState(false);
@@ -51,6 +54,7 @@ const ShellInner: React.FC = () => {
   const { profile } = useAuth();
   const { items, subtotal, add } = useCart();
 
+  // Listen for part view requests
   useEffect(() => {
     const onView = (e: Event) => {
       const { id } = (e as CustomEvent).detail || {};
@@ -63,24 +67,51 @@ const ShellInner: React.FC = () => {
     return () => window.removeEventListener('pp:viewPart' as any, onView);
   }, []);
 
-  // Listen for bulk order modal requests from header
+  // Listen for bulk order modal requests
   useEffect(() => {
     const handler = (e: Event) => {
-      console.log('🔥 MainShell: received pp:showBulkOrderModal event', e);
       const detail = (e as CustomEvent).detail || {};
       const text = detail.initialText as string;
-      console.log('🔥 MainShell: extracted text:', text);
-      if (text) {
+      if (text !== undefined) {
         setInitialBulkText(text);
         setShowBulk(true);
-        console.log('🔥 MainShell: opening bulk modal');
       }
     };
     window.addEventListener('pp:showBulkOrderModal' as any, handler);
     return () => window.removeEventListener('pp:showBulkOrderModal' as any, handler);
   }, []);
 
+  // Listen for tech finder requests
+  useEffect(() => {
+    const handler = () => setShowTech(true);
+    window.addEventListener('pp:openTechFinder' as any, handler);
+    return () => window.removeEventListener('pp:openTechFinder' as any, handler);
+  }, []);
+
+  // Listen for navigation requests
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { page } = (e as CustomEvent).detail || {};
+      if (page) {
+        setPage(page);
+      }
+    };
+    window.addEventListener('pp:navigate' as any, handler);
+    return () => window.removeEventListener('pp:navigate' as any, handler);
+  }, []);
+
   const nav = (p: string) => setPage(p as any);
+
+  // Handle search from HomeMinimal - transition to ProductListingPage
+  const handleHomepageSearch = (query: string) => {
+    setPage('search');
+    // Dispatch search event after state update
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('pp:do-search', { 
+        detail: { q: query, category: 'all', manufacturerId: 'all' } 
+      }));
+    }, 0);
+  };
 
   const handleBulkAddToCart = (items: any[]) => {
     // Add each item to the cart using the cart context
@@ -107,22 +138,38 @@ const ShellInner: React.FC = () => {
 
   const body = () => {
     switch (page) {
+      case 'home':
+        return <HomeMinimal onNav={nav} onSearch={handleHomepageSearch} onOpenCart={() => setCartOpen(true)} />;
+      case 'search':
+        return (
+          <ErrorBoundary
+            fallback={
+              <div className="max-w-4xl mx-auto px-4 py-8 text-center">
+                <div className="text-red-600">Search temporarily unavailable</div>
+                <button onClick={() => setPage('home')} className="mt-4 text-blue-600 underline">
+                  Return to homepage
+                </button>
+              </div>
+            }
+          >
+            <ProductListingPage onNav={nav} />
+          </ErrorBoundary>
+        );
       case 'admin':
         return <CSVImportSystem />;
       case 'privacy':
-        return <PrivacyPolicy onBack={() => nav('search')} />;
+        return <PrivacyPolicy onBack={() => nav('home')} />;
       case 'terms':
-        return <TermsOfService onBack={() => nav('search')} />;
+        return <TermsOfService onBack={() => nav('home')} />;
       case 'cookies':
-        return <CookiePolicy onBack={() => nav('search')} />;
+        return <CookiePolicy onBack={() => nav('home')} />;
       case 'accessibility':
-        return <Accessibility onBack={() => nav('search')} />;
+        return <Accessibility onBack={() => nav('home')} />;
       case 'shipping':
-        return <ShippingPolicy onBack={() => nav('search')} />;
+        return <ShippingPolicy onBack={() => nav('home')} />;
       case 'contact':
-        return <Contact onBack={() => nav('search')} />;
+        return <Contact onBack={() => nav('home')} />;
       case 'login':
-        // CLEAN: Use external LoginPage component
         return <LoginPage onNav={nav} />;
       case 'profile':
         return <ProfilePage onNav={nav} />;
@@ -137,7 +184,7 @@ const ShellInner: React.FC = () => {
           />
         ) : (
           <div className="max-w-4xl mx-auto px-4 py-10 text-center text-gray-600">
-            No order selected. <button onClick={() => nav('search')} className="text-red-600 underline">Return to shopping</button>
+            No order selected. <button onClick={() => nav('home')} className="text-red-600 underline">Return to homepage</button>
           </div>
         );
       case 'checkout':
@@ -174,49 +221,47 @@ const ShellInner: React.FC = () => {
           </div>
         );
       default:
-        return (
-          <ErrorBoundary
-            fallback={
-              <div className="max-w-4xl mx-auto px-4 py-8 text-center">
-                <div className="text-red-600">Search temporarily unavailable</div>
-                <button onClick={() => window.location.reload()} className="mt-4 text-blue-600 underline">
-                  Refresh page
-                </button>
-              </div>
-            }
-          >
-            <ProductListingPage onNav={nav} />
-          </ErrorBoundary>
-        );
-  }
-};
+        return <HomeMinimal onNav={nav} onSearch={handleHomepageSearch} onOpenCart={() => setCartOpen(true)} />;
+    }
+  };
+
+  // Determine if we should show header/footer
+  const isMinimalPage = page === 'home' || page === 'login';
+  const showHeaderFooter = !isMinimalPage;
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Hide Header and Footer on login page for full-screen experience */}
-      {page !== 'login' && <Header onNav={nav} onOpenCart={() => setCartOpen(true)} />}
+      {/* Show Header only for non-minimal pages */}
+      {showHeaderFooter && <Header onNav={nav} onOpenCart={() => setCartOpen(true)} />}
       
-      <main className={`flex-1 ${page !== 'login' ? 'bg-gradient-to-br from-slate-50 to-sky-50' : ''}`}>
+      <main className={`flex-1 ${showHeaderFooter ? 'bg-gradient-to-br from-slate-50 to-sky-50' : ''}`}>
         {body()}
       </main>
       
-      {page !== 'login' && <Footer onNav={nav} />}
+      {/* Show Footer only for non-minimal pages */}
+      {showHeaderFooter && <Footer onNav={nav} />}
 
+      {/* Modals */}
       {showBulk && (
         <BulkOrder
           isOpen={showBulk}
           onClose={() => {
             setShowBulk(false);
-            setInitialBulkText(''); // Clear the initial text when closing
+            setInitialBulkText('');
           }}
           onAddToCart={handleBulkAddToCart}
           userProfile={profile}
-          initialText={initialBulkText} // Pass the initial text from header flyout
+          initialText={initialBulkText}
         />
       )}
+      
       {showTech && (
-        <TechFinder isOpen={showTech} onClose={() => setShowTech(false)} />
+        <TechFinder 
+          isOpen={showTech} 
+          onClose={() => setShowTech(false)} 
+        />
       )}
+      
       <CartDrawer
         open={cartOpen}
         onClose={() => setCartOpen(false)}
@@ -260,6 +305,5 @@ const MainShell: React.FC = () => (
     </QueryClientProvider>
   </ErrorBoundary>
 );
-
 
 export default MainShell;

@@ -1,6 +1,13 @@
 // src/services/supabaseClient.ts - Debug version
 import { createClient } from '@supabase/supabase-js';
 
+// Add this at the top of supabaseClient.ts
+declare global {
+  interface Window {
+    supabase: any;
+  }
+}
+
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY as string;
 
@@ -38,3 +45,8 @@ supabase.auth.getSession().then(({ data, error }) => {
 }).catch(err => {
   console.error('❌ Supabase client initialization failed:', err);
 });
+
+// Add this at the bottom of src/services/supabaseClient.ts
+if (typeof window !== 'undefined') {
+  (window as any).supabase = supabase;
+}

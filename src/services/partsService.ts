@@ -60,7 +60,7 @@ export async function listManufacturers(): Promise<Manufacturer[]> {
         throw new PartsServiceError(
           'Failed to load manufacturers',
           'MANUFACTURERS_FETCH_ERROR',
-          error
+          error as unknown as Error
         );
       }
       
@@ -93,7 +93,7 @@ export async function listCategories(): Promise<string[]> {
         throw new PartsServiceError(
           'Failed to load categories',
           'CATEGORIES_FETCH_ERROR',
-          error
+          error as unknown as Error
         );
       }
       
@@ -156,7 +156,7 @@ export async function searchPartsAdvanced(
         throw new PartsServiceError(
           'Search failed',
           'SEARCH_RPC_ERROR',
-          error
+          error as unknown as Error
         );
       }
       
@@ -211,7 +211,7 @@ export async function fallbackSearch(
         throw new PartsServiceError(
           'Fallback search failed',
           'FALLBACK_SEARCH_ERROR',
-          error
+          error as unknown as Error
         );
       }
       
@@ -314,7 +314,7 @@ export async function listRecentParts(limit = 50): Promise<Part[]> {
         throw new PartsServiceError(
           'Failed to load recent parts',
           'RECENT_PARTS_ERROR',
-          error
+          error as unknown as Error
         );
       }
       

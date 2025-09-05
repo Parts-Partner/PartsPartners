@@ -5,7 +5,6 @@
 import { supabase } from 'services/supabaseClient';
 import type { Part } from 'services/partsService';
 
-
 // ---------------- Tunables ----------------
 const SEARCH_TIMEOUT_MS = 12_000;     // wall timeout for search
 const DEDUP_TIMEOUT_MS  = 12_000;     // timeout for dedup slot
@@ -13,25 +12,27 @@ const MEMORY_CACHE_TTL_MS = 30_000;   // small TTL to blunt bursts
 const DEFAULT_LIMIT = 200;
 const SUGGESTION_LIMIT_DEFAULT = 8;
 
+// Complete global interface declaration
 declare global {
   interface Window {
     searchCount: number;
-    searchHanging: boolean;
+    searchHanging?: boolean;
+    searchHangingTimeout?: ReturnType<typeof setTimeout>;
+    lastSearchTime: number;
   }
+}
+
+// Initialize window properties
+if (typeof window !== 'undefined') {
+  window.searchCount = window.searchCount || 0;
+  window.searchHanging = window.searchHanging || false;
+  window.lastSearchTime = window.lastSearchTime || 0;
 }
 
 // Add interface for deduplicator
 interface DeduplicatorWithPending {
   pending: Map<string, Promise<any>>;
   execute<T>(key: string, op: () => Promise<T>, timeoutMs?: number): Promise<T>;
-}
-
-window.searchHanging = true;
-
-try {
-  // ... your existing search code
-} finally {
-  window.searchHanging = false; // Always reset this flag
 }
 
 // --------------- Small utils --------------
@@ -41,11 +42,12 @@ function normalizeFilter(val?: string | null): string | undefined {
   return s === '' || s === 'all' ? undefined : String(val);
 }
 
-function withTimeout<T>(p: Promise<T>, ms = SEARCH_TIMEOUT_MS): Promise<T> {
+function withTimeout<T>(p: PromiseLike<T>, ms = SEARCH_TIMEOUT_MS): Promise<T> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`SEARCH_TIMEOUT_${ms}ms`)), ms);
-    p.then(v => { clearTimeout(t); resolve(v); })
-     .catch(e => { clearTimeout(t); reject(e); });
+    Promise.resolve(p)
+      .then(v => { clearTimeout(t); resolve(v); })
+      .catch(e => { clearTimeout(t); reject(e); });
   });
 }
 
@@ -116,9 +118,19 @@ export async function searchPartsWithCache(
   manufacturerId?: string,
   limit = DEFAULT_LIMIT
 ): Promise<Part[]> {
-  // Circuit breaker
+  // Circuit breaker - but add timeout to auto-reset
   if (typeof window !== 'undefined' && window.searchHanging) {
-    console.log('Previous search still hanging, aborting');
+    console.log('Previous search still hanging, checking timeout...');
+    
+    // Auto-reset after 15 seconds
+    if (!window.searchHangingTimeout) {
+      window.searchHangingTimeout = setTimeout(() => {
+        console.log('Auto-resetting hanging search state');
+        window.searchHanging = false;
+        delete window.searchHangingTimeout;
+      }, 15000);
+    }
+    
     return [];
   }
 
@@ -127,16 +139,21 @@ export async function searchPartsWithCache(
 
   if (typeof window !== 'undefined') {
     window.searchHanging = true;
+    window.lastSearchTime = Date.now();
+    // Clear any existing timeout
+    if (window.searchHangingTimeout) {
+      clearTimeout(window.searchHangingTimeout);
+      delete window.searchHangingTimeout;
+    }
   }
 
   try {
     console.log('SEARCH START:', q);
 
-    // Use the new RPC function instead of complex client-side logic
-    const { data, error } = await supabase.rpc('search_parts_basic', {
-      q: q,
-      p_limit: limit
-    });
+    const { data, error } = await withTimeout(
+      supabase.rpc('search_parts_basic', { q, p_limit: limit }).then(r => r),
+      10000
+    );
 
     if (error) {
       console.error('Search RPC error:', error);
@@ -148,10 +165,20 @@ export async function searchPartsWithCache(
 
   } catch (error) {
     console.error('SEARCH FAILED:', q, error);
+
+    if (error instanceof Error && error.message.includes('TIMEOUT')) {
+      console.log('Search timed out, resetting flag');
+    }
+
     throw error;
   } finally {
+    // ALWAYS reset the flag
     if (typeof window !== 'undefined') {
       window.searchHanging = false;
+      if (window.searchHangingTimeout) {
+        clearTimeout(window.searchHangingTimeout);
+        delete window.searchHangingTimeout;
+      }
     }
   }
 }
@@ -311,7 +338,7 @@ export const cacheUtils = {
   // Warm up some popular searches in the background
   async preloadCommonSearches() {
     try {
-      // customize this list to your business — keep it small/fast
+      // customize this list to your business – keep it small/fast
       const popular = ['igniter', 'thermostat', 'pilot', 'gasket'];
       const promises: Promise<any>[] = [];
       for (let i = 0; i < popular.length; i++) {
@@ -337,6 +364,13 @@ export function resetSearchState() {
   if (typeof window !== 'undefined') {
     window.searchCount = 0;
     window.searchHanging = false;
+    window.lastSearchTime = 0;
+    
+    // Clear hanging timeout
+    if (window.searchHangingTimeout) {
+      clearTimeout(window.searchHangingTimeout);
+      delete window.searchHangingTimeout;
+    }
   }
   
   // Force create a new deduplicator instance to clear any pending requests

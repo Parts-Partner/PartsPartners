@@ -1,14 +1,8 @@
-// src/features/parts/ProductListingPage.tsx - Feature-parity + resiliency hardening + Hero Banner
+// src/features/parts/ProductListingPage.tsx - Simplified and reliable
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { debounce } from 'lodash';
-import {
-  listCategories,
-  listManufacturers,
-  type Part,
-} from 'services/partsService';
-import { searchPartsWithCache } from 'services/cachedPartsService';
-import { rateLimitUtils, RateLimitError } from 'lib/rateLimiting';
+import { useQuery } from '@tanstack/react-query';
+import { searchParts, clearSearchCache } from 'services/searchService';
+import { listCategories, listManufacturers } from 'services/partsService';
 import { useCart } from 'context/CartContext';
 import { useAuth, type UserProfile } from 'context/AuthContext';
 import { PartsList } from 'components/search/PartsList';
@@ -17,617 +11,486 @@ import { Filters } from 'components/search/Filters';
 import HomePromos from 'components/home/HomePromos';
 import { X } from 'lucide-react';
 
-// --- helpers --------------------------------------------------------------
-const PAGE_SIZES = [12, 24, 48];
-const SEARCH_TIMEOUT_MS = 12000;
-
-type SearchPayload = { q?: string; category?: string; manufacturerId?: string };
-
-function withTimeout<T>(p: Promise<T>, ms = SEARCH_TIMEOUT_MS): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`SEARCH_TIMEOUT_${ms}ms`)), ms);
-    p.then(v => { clearTimeout(t); resolve(v); })
-     .catch(e => { clearTimeout(t); reject(e); });
-  });
-}
-
-function normalizeFilter(val?: string | null): string | undefined {
-  if (val == null) return undefined;
-  const s = String(val).trim().toLowerCase();
-  return s === '' || s === 'all' ? undefined : (val as string);
-}
-
-// --- types ----------------------------------------------------------------
 interface ProductListingPageProps {
   onNav?: (page: string) => void;
 }
 
 export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav }) => {
+  // Context
   const { add, updateQty, items } = useCart();
   const { profile } = useAuth();
-  const queryClient = useQueryClient();
 
-  // query + filter state (mirrors Header) ---------------------------------
-  const [q, setQ] = useState('');
+  // Search state
+  const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [manufacturerId, setManufacturerId] = useState('all');
+  const [hasSearched, setHasSearched] = useState(false);
 
-  // UI state ---------------------------------------------------------------
-  const [searched, setSearched] = useState(false);
+  // UI state
+  const [sort, setSort] = useState<'relevance' | 'price_asc' | 'price_desc' | 'in_stock'>('relevance');
+  const [pageSize, setPageSize] = useState(24);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Rate limiting state
-  const [rateLimited, setRateLimited] = useState(false);
-  const [rateLimitMessage, setRateLimitMessage] = useState('');
-  const [retryAfter, setRetryAfter] = useState(0);
-
-  // sort & pagination
-  const [sort, setSort] = useState<'relevance'|'price_asc'|'price_desc'|'in_stock'>('relevance');
-  const [pageSize, setPageSize] = useState<number>(PAGE_SIZES[0]);
-  const [page, setPage] = useState(1);
-
-  // Create search params for React Query - only when we have a real search
-  const searchParams = useMemo(() => {
-    const ready = searched && q.trim().length > 0; // keep your original logic
-    const params = ready ? {
-      query: q.trim(),
-      category,
-      manufacturerId
-    } : null;
-
-    console.log('🔧 searchParams computed', { ready, searched, q: q.trim(), params });
-    return params;
-  }, [q, category, manufacturerId, searched]);
-
-
-  // Rate limit countdown timer (now with auto-refetch at 0)
-  useEffect(() => {
-    if (retryAfter > 0) {
-      const timer = setInterval(() => {
-        setRetryAfter(prev => {
-          if (prev <= 1) {
-            setRateLimited(false);
-            setRateLimitMessage('');
-            // proactively refetch when window ends
-            setTimeout(() => { refetch(); }, 0);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [retryAfter]);
-
-  // React Query for categories - cached aggressively for performance
+  // Load categories and manufacturers
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: listCategories,
-    staleTime: 30 * 60 * 1000,
-    gcTime: 60 * 60 * 1000,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
+    staleTime: 30 * 60 * 1000, // 30 minutes
   });
 
-  // React Query for manufacturers - cached aggressively for performance
   const { data: manufacturers = [] } = useQuery({
     queryKey: ['manufacturers'],
     queryFn: listManufacturers,
-    staleTime: 30 * 60 * 1000,
-    gcTime: 60 * 60 * 1000,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
+    staleTime: 30 * 60 * 1000, // 30 minutes
   });
 
-  // React Query for search results - with rate limiting and smart caching
+  // Search query - only run when we have a search term
   const { 
-    data: parts = [], 
+    data: searchResults = [], 
     isLoading, 
     error,
-    refetch,
-    isFetching
-} = useQuery({
-    queryKey: ['parts-search', searchParams],
-    queryFn: async () => {
-      if (!searchParams) {
-        console.log('🔎 SKIP: no searchParams');
-        return [];
-      }
-
-      try {
-        // Reset rate limit flags before every attempt
-        setRateLimited(false);
-        setRateLimitMessage('');
-
-        // Normalize filters (prevent empty string/null mismatch in cache keys)
-        const normCategory = normalizeFilter(searchParams.category);
-        const normMfg      = normalizeFilter(searchParams.manufacturerId);
-
-        console.log('🔍 QUERY START', {
-          q: searchParams.query,
-          normCategory,
-          normMfg,
-        });
-
-        // Add timeout back but with detailed logging
-        const results = await withTimeout(
-          (async () => {
-            console.log('🔍 About to call searchPartsWithCache');
-            const startTime = Date.now();
-            const result = await searchPartsWithCache(
-              searchParams.query,
-              normCategory,
-              normMfg
-            );
-            console.log('🔍 searchPartsWithCache completed in', Date.now() - startTime, 'ms');
-            return result;
-          })(),
-          12000
-        );
-
-        console.log('✅ QUERY OK', { count: results?.length ?? -1 });
-        return Array.isArray(results) ? results : [];
-
-      } catch (err) {
-        // Handle rate-limit errors gracefully
-        if (rateLimitUtils.isRateLimitError(err)) {
-          const rateLimitError = err as RateLimitError;
-          setRateLimited(true);
-          setRateLimitMessage(
-            rateLimitUtils.getRateLimitMessage('search', rateLimitError)
-          );
-          setRetryAfter(rateLimitError.getRetryAfterSeconds());
-
-          console.warn('🚫 Rate limited', {
-            message: rateLimitError.message,
-            retryAfter: rateLimitError.getRetryAfterSeconds(),
-          });
-
-          return []; // suppress error state in React Query
-        }
-
-        console.error('❌ QUERY FAIL', err);
-        throw err; // bubble other errors to React Query
-      }
-    },
-    enabled: !!searchParams && !rateLimited, // block if no params or rate limited
-    staleTime: 2 * 60 * 1000,  // 2 minutes
-    gcTime: 10 * 60 * 1000,    // 10 minutes
-    retry: (failureCount, err) => {
-      // Don't retry on rate-limit
-      if (rateLimitUtils.isRateLimitError(err)) return false;
+    refetch
+  } = useQuery({
+  queryKey: ['search', query.trim(), category, manufacturerId],
+  queryFn: async () => {
+    console.log('🚀 REACT QUERY EXECUTING with:', { 
+      query: query.trim(), 
+      category, 
+      manufacturerId,
+      hasSearched 
+    });
+    
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return [];
+    
+    return await searchParts(
+      trimmedQuery,
+      category === 'all' ? undefined : category,
+      manufacturerId === 'all' ? undefined : manufacturerId
+    );
+  },
+    enabled: hasSearched && query.trim().length > 0,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    retry: (failureCount, error: any) => {
+      // Don't retry rate limited requests
+      if (error?.message === 'RATE_LIMITED') return false;
       return failureCount < 1;
-    },
-    retryDelay: 1000,
+    }
   });
 
+  // Handle search from external sources (Header, HomeMinimal)
+  const handleExternalSearch = useCallback((payload: any) => {
+    const searchQuery = payload.q?.trim() || '';
+    const searchCategory = payload.category || 'all';
+    const searchManufacturer = payload.manufacturerId || 'all';
 
-  // Manual search function for immediate execution
-  const executeSearch = useCallback((payload: SearchPayload) => {
-    const nextQ = (payload.q ?? '').trim();
-    const nextCat = String(payload.category ?? 'all');
-    const nextMfg = String(payload.manufacturerId ?? 'all');
-
-    console.log('🚀 Executing search:', { nextQ, nextCat, nextMfg });
-
-    // Clear rate limit state on new search
-    setRateLimited(false);
-    setRateLimitMessage('');
-    setRetryAfter(0);
-
-    // Update state
-    setQ(nextQ);
-    setCategory(nextCat);
-    setManufacturerId(nextMfg);
-    setPage(1); // reset paging on every new search
-
-    // Mark as searched if we have a query (keep original behavior)
-    if (nextQ.length > 0) {
-      setSearched(true);
+    if (searchQuery) {
+      setQuery(searchQuery);
+      setCategory(searchCategory);
+      setManufacturerId(searchManufacturer);
+      setHasSearched(true);
+      setCurrentPage(1);
     }
   }, []);
 
-  // Debounced search for filter changes (but not initial searches)
-  const debouncedFilterSearch = useMemo(
-    () => debounce((payload: SearchPayload) => {
-      if (searched) { // Only debounce if we're already in search mode
-        executeSearch(payload);
+  // Listen for external search events
+  useEffect(() => {
+    const handleSearchEvent = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        handleExternalSearch(detail);
       }
-    }, 300),
-    [executeSearch, searched]
-  );
-
-  // Reset to homepage state
-  const resetToHomepage = useCallback(() => {
-    debouncedFilterSearch.cancel();
-    setQ('');
-    setCategory('all');
-    setManufacturerId('all');
-    setSort('relevance');
-    setPage(1);
-    setSearched(false);
-
-    // Clear rate limiting state
-    setRateLimited(false);
-    setRateLimitMessage('');
-    setRetryAfter(0);
-
-    // Clear the search cache to ensure fresh results next time
-    queryClient.removeQueries({ queryKey: ['parts-search'] });
-  }, [debouncedFilterSearch, queryClient]);
-
-  // Auto-enable search mode when user types at least 2 chars
-  useEffect(() => {
-    if (q.trim().length >= 2 && !searched) {
-      console.log('🟢 Auto-enabling search mode (searched=true)');
-      setSearched(true);
-    }
-  }, [q, searched]);
-
-
-  // Listen for Header-dispatched searches
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const payload = (e as CustomEvent).detail || {};
-      console.log('📡 Received search event:', payload);
-      executeSearch(payload);
     };
 
-    window.addEventListener('pp:search' as any, handler);
-    window.addEventListener('pp:do-search' as any, handler);
+    window.addEventListener('pp:search' as any, handleSearchEvent);
+    window.addEventListener('pp:do-search' as any, handleSearchEvent);
 
     return () => {
-      window.removeEventListener('pp:search' as any, handler);
-      window.removeEventListener('pp:do-search' as any, handler);
+      window.removeEventListener('pp:search' as any, handleSearchEvent);
+      window.removeEventListener('pp:do-search' as any, handleSearchEvent);
     };
-  }, [executeSearch]);
+  }, [handleExternalSearch]);
 
-  // Listen for homepage reset events from header
+  // Reset to homepage
+  const resetToHomepage = useCallback(() => {
+    setQuery('');
+    setCategory('all');
+    setManufacturerId('all');
+    setHasSearched(false);
+    setCurrentPage(1);
+    clearSearchCache();
+  }, []);
+
+  // Listen for homepage reset
   useEffect(() => {
-    const handler = () => {
-      resetToHomepage();
-    };
-    window.addEventListener('pp:goHome' as any, handler);
-    return () => window.removeEventListener('pp:goHome' as any, handler);
+    const handleReset = () => resetToHomepage();
+    window.addEventListener('pp:goHome' as any, handleReset);
+    return () => window.removeEventListener('pp:goHome' as any, handleReset);
   }, [resetToHomepage]);
 
-  // in-cart qty helper
-  const inCartQty = useCallback((id: string) => 
-    items.find((i) => i.id === id)?.quantity || 0
-  , [items]);
-
-  // active filter chips ----------------------------------------------------
-  const activeChips = useMemo(() => {
-    const chips: { label: string; clear: () => void }[] = [];
-    if (category !== 'all') {
-      chips.push({ 
-        label: category, 
-        clear: () => {
-          setCategory('all');
-          if (searched) {
-            executeSearch({ q, category: 'all', manufacturerId });
-          }
-        }
-      });
-    }
-    if (manufacturerId !== 'all') {
-      const m = manufacturers.find((m) => m.id === manufacturerId)?.manufacturer || 'Manufacturer';
-      chips.push({ 
-        label: m, 
-        clear: () => {
-          setManufacturerId('all');
-          if (searched) {
-            executeSearch({ q, category, manufacturerId: 'all' });
-          }
-        }
-      });
-    }
-    return chips;
-  }, [category, manufacturerId, manufacturers, searched, q, executeSearch]);
-
-  // client-side sorting (optimized with useMemo) ----------------------------
-  const sorted = useMemo(() => {
-    if (!parts || parts.length === 0) return [];
-
-    const base = [...parts];
-    const num = (n: number | string | null | undefined) => {
-      if (typeof n === 'number') return n;
-      if (!n) return 0;
-      const x = parseFloat(String(n));
-      return isNaN(x) ? 0 : x;
-    };
-
-    switch (sort) {
-      case 'price_asc':
-        return base.sort((a,b) => (num(a.list_price) - num(b.list_price)));
-      case 'price_desc':
-        return base.sort((a,b) => (num(b.list_price) - num(a.list_price)));
-      case 'in_stock':
-        return base.sort((a,b) => Number(b.in_stock) - Number(a.in_stock));
-      default:
-        return base; // API relevance
-    }
-  }, [parts, sort]);
-
-  // pagination (optimized) -------------------------------------------------
-  const total = sorted.length;
-  const lastPage = Math.max(1, Math.ceil(total / pageSize));
-  const clampedPage = Math.min(page, lastPage);
-
-  const pageSlice = useMemo(() => {
-    if (sorted.length === 0) return [];
-    const start = (clampedPage - 1) * pageSize;
-    return sorted.slice(start, start + pageSize);
-  }, [sorted, clampedPage, pageSize]);
-
-  useEffect(() => { 
-    if (page > lastPage && lastPage > 0) setPage(lastPage); 
-  }, [lastPage, page]);
-
-  // handlers ---------------------------------------------------------------
+  // Apply filters
   const applyFilters = useCallback(() => {
-    executeSearch({ q, category, manufacturerId });
-  }, [executeSearch, q, category, manufacturerId]);
+    if (query.trim()) {
+      setCurrentPage(1);
+      // Trigger refetch by updating hasSearched
+      setHasSearched(true);
+      refetch();
+    }
+  }, [query, refetch]);
 
-  const clearAll = useCallback(() => {
+  // Clear all filters
+  const clearAllFilters = useCallback(() => {
     setCategory('all');
     setManufacturerId('all');
     setSort('relevance');
-    setPage(1);
-    if (q.trim()) {
-      executeSearch({ q: q || '', category: 'all', manufacturerId: 'all' });
+    setCurrentPage(1);
+    if (query.trim()) {
+      refetch();
     }
-  }, [executeSearch, q]);
+  }, [query, refetch]);
 
-  // render -----------------------------------------------------------------
+  // Sort results
+  const sortedResults = useMemo(() => {
+    if (!searchResults.length) return [];
+
+    const sorted = [...searchResults];
+    
+    switch (sort) {
+      case 'price_asc':
+        return sorted.sort((a, b) => {
+          const priceA = parseFloat(String(a.list_price || '0'));
+          const priceB = parseFloat(String(b.list_price || '0'));
+          return priceA - priceB;
+        });
+      case 'price_desc':
+        return sorted.sort((a, b) => {
+          const priceA = parseFloat(String(a.list_price || '0'));
+          const priceB = parseFloat(String(b.list_price || '0'));
+          return priceB - priceA;
+        });
+      case 'in_stock':
+        return sorted.sort((a, b) => Number(b.in_stock) - Number(a.in_stock));
+      default:
+        return sorted;
+    }
+  }, [searchResults, sort]);
+
+  // Pagination
+  const totalResults = sortedResults.length;
+  const totalPages = Math.ceil(totalResults / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const currentResults = sortedResults.slice(startIndex, endIndex);
+
+  // Active filter chips
+  const activeFilters = useMemo(() => {
+    const filters: Array<{ label: string; clear: () => void }> = [];
+    
+    if (category !== 'all') {
+      filters.push({
+        label: category,
+        clear: () => {
+          setCategory('all');
+          if (hasSearched) refetch();
+        }
+      });
+    }
+    
+    if (manufacturerId !== 'all') {
+      const manufacturer = manufacturers.find(m => m.id === manufacturerId);
+      if (manufacturer) {
+        filters.push({
+          label: manufacturer.manufacturer,
+          clear: () => {
+            setManufacturerId('all');
+            if (hasSearched) refetch();
+          }
+        });
+      }
+    }
+    
+    return filters;
+  }, [category, manufacturerId, manufacturers, hasSearched, refetch]);
+
+  // Cart quantity helper
+  const getCartQuantity = useCallback((partId: string) => {
+    return items.find(item => item.id === partId)?.quantity || 0;
+  }, [items]);
+
+  // Handle rate limiting error
+  const isRateLimited = error?.message === 'RATE_LIMITED';
+
+  // Render homepage content if not searched
+  if (!hasSearched) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Hero Banner */}
+        <div className="mb-8 relative">
+          <img
+            src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/public/assets/Hero_Banner_ServiceTechs_Join_The_Team.png"
+            alt="Service Technicians - Join The Team"
+            className="w-full h-auto rounded-2xl shadow-lg"
+          />
+          <button
+            onClick={() => onNav?.('contact')}
+            className="absolute bg-transparent hover:bg-white/10 transition-colors duration-200 rounded-lg"
+            style={{
+              left: '5.5%',
+              top: '47.5%',
+              width: '19%',
+              height: '17%'
+            }}
+            aria-label="Register Now"
+          />
+        </div>
+
+        {/* Home Promos */}
+        <HomePromos
+          onRegister={() => onNav?.('contact')}
+          onFindTech={() => window.dispatchEvent(new CustomEvent('pp:openTechFinder'))}
+          onBulk={() => window.dispatchEvent(new CustomEvent('pp:showBulkOrderModal', { detail: { initialText: '' } }))}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      {/* Hero Banner and Homepage Promos - Show when not searched yet */}
-      {!searched && (
-        <>
-          {/* Hero Banner with Clickable Register Button */}
-          <div className="mb-8 relative">
-            <img
-              src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/public/assets/Hero_Banner_ServiceTechs_Join_The_Team.png"
-              alt="Service Technicians - Join The Team"
-              className="w-full h-auto rounded-2xl shadow-lg"
-            />
-            {/* Invisible clickable area over the "Register Now" button in the image */}
-            <button
-              onClick={() => {
-                // Navigate to login page - same as existing HomePromos onRegister handler
-                window.dispatchEvent(new CustomEvent('pp:navigate', { detail: { page: 'contact' } }));
-              }}
-              className="absolute bg-transparent hover:bg-white/10 transition-colors duration-200 rounded-lg"
-              style={{
-                left: '5.5%',
-                top: '47.5%',
-                width: '19%',
-                height: '17%'
-              }}
-              aria-label="Register Now - Join the Parts Partners team"
-              title="Click to register and join our team"
-            />
-          </div>
-
-          {/* Homepage Promos */}
-          <div className="mb-12">
-            <HomePromos
-              onRegister={() => {
-                window.dispatchEvent(new CustomEvent('pp:navigate', { detail: { page: 'contact' } }));
-              }}
-              onFindTech={() => {
-                window.dispatchEvent(new CustomEvent('pp:openTechFinder'));
-              }}
-              onBulk={() => {
-                window.dispatchEvent(new CustomEvent('pp:openBulkOrder'));
-              }}
-            />
-          </div>
-        </>
-      )}
-
-      {/* Rate limit notification banner */}
-      {rateLimited && searched && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
-              <span className="text-red-600 text-sm font-bold">!</span>
-            </div>
-            <div className="flex-1">
-              <div className="text-red-800 font-medium">Search Rate Limited</div>
-              <div className="text-red-700 text-sm">{rateLimitMessage}</div>
-            </div>
-            {retryAfter > 0 && (
-              <div className="text-red-600 font-mono text-sm">
-                {retryAfter}s
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Top meta bar (visible after a search) */}
-      {searched && (
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <div className="text-sm text-gray-500">
-            {isLoading || isFetching ? (
-              <span className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                Searching...
-              </span>
-            ) : rateLimited ? (
-              <span className="text-red-600">Search temporarily limited</span>
-            ) : (
-              <>
-                Showing <span className="font-semibold text-gray-900">{total.toLocaleString()}</span> results for
-              </>
-            )}
-          </div>
-          {!isLoading && !isFetching && !rateLimited && (
-            <div className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700 text-sm font-semibold">
-              &quot;{q || 'All'}&quot;
-            </div>
+      {/* Search Results Header */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="text-sm text-gray-500">
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+              Searching...
+            </span>
+          ) : isRateLimited ? (
+            <span className="text-red-600">Search rate limited - please slow down</span>
+          ) : error ? (
+            <span className="text-red-600">Search failed - please try again</span>
+          ) : (
+            <>
+              Showing <span className="font-semibold text-gray-900">{totalResults.toLocaleString()}</span> results for
+            </>
           )}
-
-          {/* active chips */}
-          {activeChips.map((c, i) => (
-            <button
-              key={i}
-              onClick={c.clear}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 text-xs hover:bg-gray-200 transition-colors"
-              aria-label={`Clear ${c.label}`}
-            >
-              {c.label}
-              <X className="w-3 h-3" />
-            </button>
-          ))}
-
-          {/* spacer */}
-          <div className="ml-auto flex items-center gap-2">
-            <label className="text-sm text-gray-600">Sort</label>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as any)}
-              className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-              aria-label="Sort results"
-              disabled={rateLimited}
-            >
-              <option value="relevance">Relevance</option>
-              <option value="price_asc">Price: Low to High</option>
-              <option value="price_desc">Price: High to Low</option>
-              <option value="in_stock">In Stock First</option>
-            </select>
-            <label className="text-sm text-gray-600 ml-2">Per page</label>
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(parseInt(e.target.value, 10)); setPage(1); }}
-              className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-              aria-label="Results per page"
-            >
-              {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
         </div>
-      )}
+        
+        {!isLoading && !error && (
+          <div className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700 text-sm font-semibold">
+            &quot;{query}&quot;
+          </div>
+        )}
 
-      {/* Controls row (filters at left, apply) */}
-      {searched && (
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <Filters
-            categories={categories}
-            manufacturers={manufacturers}
-            category={category}
-            manufacturerId={manufacturerId}
-            onCategoryChange={(newCategory) => {
-              setCategory(newCategory);
-              if (!rateLimited) {
-                debouncedFilterSearch({ q, category: newCategory, manufacturerId });
-              }
-            }}
-            onManufacturerChange={(newManufacturerId) => {
-              setManufacturerId(newManufacturerId);
-              if (!rateLimited) {
-                debouncedFilterSearch({ q, category, manufacturerId: newManufacturerId });
-              }
-            }}
-            onApply={applyFilters}
-          />
-
+        {/* Active filter chips */}
+        {activeFilters.map((filter, index) => (
           <button
-            onClick={clearAll}
-            className="px-3 py-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors"
+            key={index}
+            onClick={filter.clear}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 text-xs hover:bg-gray-200 transition-colors"
           >
-            Clear All
+            {filter.label}
+            <X className="w-3 h-3" />
           </button>
+        ))}
 
-          {/* Retry button for errors */}
-          {error && !rateLimited && (
-            <button
-              onClick={() => refetch()}
-              className="px-3 py-3 rounded-xl border border-red-300 text-red-700 hover:bg-red-50 transition-colors"
-            >
-              Retry Search
-            </button>
-          )}
-
-          {/* Retry button for rate limiting */}
-          {rateLimited && retryAfter === 0 && (
-            <button
-              onClick={() => {
-                setRateLimited(false);
-                setRateLimitMessage('');
-                refetch();
-              }}
-              className="px-3 py-3 rounded-xl border border-green-300 text-green-700 hover:bg-green-50 transition-colors"
-            >
-              Try Again
-            </button>
-          )}
+        {/* Sort and pagination controls */}
+        <div className="ml-auto flex items-center gap-4">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as any)}
+            className="px-3 py-2 border rounded-lg text-sm"
+            disabled={isLoading}
+          >
+            <option value="relevance">Relevance</option>
+            <option value="price_asc">Price: Low to High</option>
+            <option value="price_desc">Price: High to Low</option>
+            <option value="in_stock">In Stock First</option>
+          </select>
+          
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(parseInt(e.target.value));
+              setCurrentPage(1);
+            }}
+            className="px-3 py-2 border rounded-lg text-sm"
+          >
+            <option value={12}>12 per page</option>
+            <option value={24}>24 per page</option>
+            <option value={48}>48 per page</option>
+          </select>
         </div>
-      )}
+      </div>
 
-      {/* Error state (for non-rate-limit errors) */}
-      {error && searched && !rateLimited && !rateLimitUtils.isRateLimitError(error) && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <div className="text-red-700 font-medium">Search Error</div>
-          <div className="text-red-600 text-sm mt-1">
-            Unable to load search results. Please try again.
-          </div>
-        </div>
-      )}
+      {/* Filters */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Filters
+          categories={categories}
+          manufacturers={manufacturers}
+          category={category}
+          manufacturerId={manufacturerId}
+          onCategoryChange={setCategory}
+          onManufacturerChange={setManufacturerId}
+          onApply={applyFilters}
+        />
+        
+        <button
+          onClick={clearAllFilters}
+          className="px-4 py-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          Clear All
+        </button>
+
+        {/* Retry button for errors */}
+        {error && !isRateLimited && (
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-3 rounded-xl border border-red-300 text-red-700 hover:bg-red-50 transition-colors"
+          >
+            Retry Search
+          </button>
+        )}
+      </div>
 
       {/* Results */}
-      {searched ? (
-        parts.length === 0 && !isLoading && !isFetching && !error && !rateLimited ? (
-          <NoResults onReset={resetToHomepage} />
-        ) : (
-          <>
-            <PartsList
-              parts={pageSlice}
-              onAdd={add}
-              onUpdateQty={updateQty}
-              getQty={(id) => items.find((i) => i.id === id)?.quantity || 0}
-              loading={isLoading || isFetching}
-              discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
-              onView={(p) => {
-                window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: p.id } }));
-              }}
-            />
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+        </div>
+      ) : error && !isRateLimited ? (
+        <div className="text-center py-12">
+          <div className="text-red-600 mb-4">Search failed. Please try again.</div>
+          <button
+            onClick={() => refetch()}
+            className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
+            Retry Search
+          </button>
+        </div>
+      ) : isRateLimited ? (
+        <div className="text-center py-12">
+          <div className="text-orange-600 mb-4">
+            Search rate limited. Please wait a moment and try again.
+          </div>
+          <button
+            onClick={resetToHomepage}
+            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+          >
+            Return to Homepage
+          </button>
+        </div>
+      ) : totalResults === 0 ? (
+        <NoResults onReset={resetToHomepage} />
+      ) : (
+        <>
+          {/* Parts List */}
+          <PartsList
+            parts={currentResults}
+            loading={false}
+            discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
+            onAdd={add}
+            onUpdateQty={updateQty}
+            getQty={getCartQuantity}
+            onView={(part) => {
+              window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
+            }}
+          />
 
-            {/* Pagination */}
-            {sorted.length > pageSize && !isLoading && !isFetching && !rateLimited && (
-              <div className="mt-6 flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  Page <span className="font-medium text-gray-900">{page}</span> of {Math.max(1, Math.ceil(sorted.length / pageSize))}
-                  {sorted.length > 0 && (
-                    <span className="ml-2">
-                      ({((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, sorted.length)} of {sorted.length.toLocaleString()} results)
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="px-3 py-2 rounded-lg border disabled:opacity-50 hover:bg-gray-50 transition-colors"
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    Previous
-                  </button>
-                  <button
-                    className="px-3 py-2 rounded-lg border disabled:opacity-50 hover:bg-gray-50 transition-colors"
-                    disabled={page >= Math.max(1, Math.ceil(sorted.length / pageSize))}
-                    onClick={() => setPage((p) => Math.min(Math.max(1, Math.ceil(sorted.length / pageSize)), p + 1))}
-                  >
-                    Next
-                  </button>
-                </div>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-8 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages} 
+                <span className="ml-2">
+                  ({startIndex + 1}-{Math.min(endIndex, totalResults)} of {totalResults.toLocaleString()})
+                </span>
               </div>
-            )}
-          </>
-        )
-      ) : null}
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage <= 1}
+                  className="px-4 py-2 rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                >
+                  Previous
+                </button>
+                
+                {/* Page numbers */}
+                {totalPages <= 7 ? (
+                  // Show all pages if 7 or fewer
+                  Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-2 rounded-lg border transition-colors ${
+                        page === currentPage 
+                          ? 'bg-red-600 text-white border-red-600' 
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))
+                ) : (
+                  // Show abbreviated pagination for many pages
+                  <>
+                    {currentPage > 3 && (
+                      <>
+                        <button
+                          onClick={() => setCurrentPage(1)}
+                          className="px-3 py-2 rounded-lg border hover:bg-gray-50"
+                        >
+                          1
+                        </button>
+                        {currentPage > 4 && <span className="px-2">...</span>}
+                      </>
+                    )}
+                    
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const page = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                      if (page > totalPages) return null;
+                      
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-2 rounded-lg border transition-colors ${
+                            page === currentPage 
+                              ? 'bg-red-600 text-white border-red-600' 
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                    
+                    {currentPage < totalPages - 2 && (
+                      <>
+                        {currentPage < totalPages - 3 && <span className="px-2">...</span>}
+                        <button
+                          onClick={() => setCurrentPage(totalPages)}
+                          className="px-3 py-2 rounded-lg border hover:bg-gray-50"
+                        >
+                          {totalPages}
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="px-4 py-2 rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
-
-export default ProductListingPage;
