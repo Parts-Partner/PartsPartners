@@ -50,7 +50,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
     staleTime: 30 * 60 * 1000,
   });
 
-  // Search query with facets
+  // Update your search query to handle errors better
   const { 
     data: searchResponse = { data: [], facets: [], count: 0 }, 
     isLoading, 
@@ -59,28 +59,30 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
   } = useQuery({
     queryKey: ['searchWithFacets', query.trim(), category, manufacturerId],
     queryFn: async (): Promise<SearchResponse> => {
-      console.log('🚀 REACT QUERY EXECUTING with:', { 
-        query: query.trim(), 
-        category, 
-        manufacturerId,
-        hasSearched 
-      });
-      
       const trimmedQuery = query.trim();
       if (!trimmedQuery) return { data: [], facets: [], count: 0 };
       
-      return await searchPartsWithFacets(
-        trimmedQuery,
-        category === 'all' ? undefined : category,
-        manufacturerId === 'all' ? undefined : manufacturerId
-      );
+      try {
+        const result = await searchPartsWithFacets(
+          trimmedQuery,
+          category === 'all' ? undefined : category,
+          manufacturerId === 'all' ? undefined : manufacturerId
+        );
+        
+        // Ensure we always return properly structured data
+        return {
+          data: Array.isArray(result.data) ? result.data : [],
+          facets: Array.isArray(result.facets) ? result.facets : [],
+          count: result.count || 0
+        };
+      } catch (err) {
+        console.error('Search error:', err);
+        return { data: [], facets: [], count: 0 };
+      }
     },
     enabled: hasSearched && query.trim().length > 0,
     staleTime: 2 * 60 * 1000,
-    retry: (failureCount, error: any) => {
-      if (error?.message === 'RATE_LIMITED') return false;
-      return failureCount < 1;
-    }
+    retry: false // Don't retry to avoid infinite loops
   });
 
   // Handle search from external sources (Header, HomeMinimal) - preserved
@@ -324,7 +326,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
           </div>
           
           <div className="space-y-1 max-h-80 overflow-y-auto">
-            {searchResponse.facets.map((facet) => (
+            {(searchResponse?.facets || []).map((facet) => (
               <button
                 key={facet.id}
                 onClick={() => handleManufacturerSelect(
