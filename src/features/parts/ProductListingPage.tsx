@@ -157,16 +157,18 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
   // Reset to homepage
   const resetToHomepage = useCallback(() => {
     try {
+      console.log('🔍 PLP DEBUG: resetToHomepage called - resetting search state');
       setQuery('');
       setCategory('all');
       setManufacturerId('all');
       setHasSearched(false);
       setCurrentPage(1);
       setSidebarFilter('');
-    } catch (error) {
-      console.error('❌ PLP: Error resetting to homepage:', error);
+    } catch (error: unknown) {
+      console.error('PLP: Error resetting to homepage:', error);
     }
   }, []);
+  
 
   // Listen for homepage reset
   useEffect(() => {
