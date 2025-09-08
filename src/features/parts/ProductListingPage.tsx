@@ -249,7 +249,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
   console.log('🔍 PLP DEBUG: hasSearched:', hasSearched, 'query:', query);
 
   // Pagination - updated to use filtered results
-  const totalResults = filteredAndSortedResults?.length || 0;
+  const totalResults = Array.isArray(filteredAndSortedResults) ? filteredAndSortedResults.length : 0;
   const totalPages = Math.ceil(totalResults / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
