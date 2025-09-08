@@ -10,6 +10,46 @@ interface SearchResponse {
   count: number;
 }
 
+// Add this simple search function without facets
+export async function searchParts(
+  query: string,
+  category?: string,
+  manufacturerId?: string
+): Promise<any[]> {
+  const cleanQuery = query?.trim();
+  if (!cleanQuery || cleanQuery.length < 2) {
+    return [];
+  }
+
+  try {
+    const params = new URLSearchParams({
+      q: cleanQuery,
+      limit: '1000'
+    });
+    
+    if (category && category !== 'all') {
+      params.append('category', category);
+    }
+    
+    if (manufacturerId && manufacturerId !== 'all') {
+      params.append('manufacturerId', manufacturerId);
+    }
+
+    const response = await fetch(`/.netlify/functions/search?${params.toString()}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const result = await response.json();
+    return result.data || [];
+
+  } catch (error) {
+    console.error('Search error:', error);
+    return [];
+  }
+}
+
 // Add this to src/services/searchService.ts
 export async function searchPartsWithFacets(
   query: string,
