@@ -460,6 +460,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
                 </>
               )}
             </div>
+            console.log('PLP DEBUG: Render conditions - isLoading:', isLoading, 'error:', !!error, 'isRateLimited:', isRateLimited, 'totalResults:', totalResults);
             
             {!isLoading && !error && (
               <div className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700 text-sm font-semibold">
