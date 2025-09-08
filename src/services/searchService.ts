@@ -1,4 +1,4 @@
-// src/services/searchService.ts - Fixed ESLint error
+// src/services/searchService.ts - Debug version to see what's happening
 import type { Part } from 'services/partsService';
 
 interface SearchResponse {
@@ -23,6 +23,7 @@ export async function searchPartsWithFacets(
 }> {
   const cleanQuery = query?.trim();
   if (!cleanQuery || cleanQuery.length < 2) {
+    console.log('🔍 SearchService: Query too short or empty:', cleanQuery);
     return { data: [], facets: [], count: 0 };
   }
 
@@ -40,21 +41,35 @@ export async function searchPartsWithFacets(
       params.append('manufacturerId', manufacturerId);
     }
 
-    const response = await fetch(`/.netlify/functions/search?${params.toString()}`);
+    const url = `/.netlify/functions/search?${params.toString()}`;
+    console.log('🔍 SearchService: Making request to:', url);
+
+    const response = await fetch(url);
+    
+    console.log('🔍 SearchService: Response status:', response.status);
+    console.log('🔍 SearchService: Response ok:', response.ok);
     
     if (!response.ok) {
+      console.error('❌ SearchService: HTTP error:', response.status, response.statusText);
       throw new Error(`HTTP ${response.status}`);
     }
     
     const result = await response.json();
-    return {
+    console.log('🔍 SearchService: Raw response:', result);
+    console.log('🔍 SearchService: Data length:', result.data?.length);
+    console.log('🔍 SearchService: Facets length:', result.facets?.length);
+    
+    const formattedResult = {
       data: result.data || [],
       facets: result.facets || [],
       count: result.count || 0
     };
+    
+    console.log('🔍 SearchService: Formatted result:', formattedResult);
+    return formattedResult;
 
   } catch (error) {
-    console.error('Search with facets error:', error);
+    console.error('❌ SearchService: Search with facets error:', error);
     return { data: [], facets: [], count: 0 };
   }
 }
@@ -84,17 +99,22 @@ export async function searchParts(
       params.append('manufacturerId', manufacturerId);
     }
 
-    const response = await fetch(`/.netlify/functions/search?${params.toString()}`);
+    const url = `/.netlify/functions/search?${params.toString()}`;
+    console.log('🔍 Simple SearchService: Making request to:', url);
+
+    const response = await fetch(url);
     
     if (!response.ok) {
+      console.error('❌ Simple SearchService: HTTP error:', response.status);
       throw new Error(`HTTP ${response.status}`);
     }
     
     const result = await response.json();
+    console.log('🔍 Simple SearchService: Response:', result);
     return result.data || [];
 
   } catch (error) {
-    console.error('Search error:', error);
+    console.error('❌ Simple SearchService: Search error:', error);
     return [];
   }
 }
@@ -111,17 +131,22 @@ export async function getSearchSuggestions(query: string): Promise<Array<{
   }
 
   try {
-    const response = await fetch(`/.netlify/functions/suggestions?q=${encodeURIComponent(cleanQuery)}`);
+    const url = `/.netlify/functions/suggestions?q=${encodeURIComponent(cleanQuery)}`;
+    console.log('🔍 Suggestions: Making request to:', url);
+    
+    const response = await fetch(url);
     
     if (!response.ok) {
+      console.warn('⚠️ Suggestions: HTTP error:', response.status);
       throw new Error(`HTTP ${response.status}`);
     }
     
     const result = await response.json();
+    console.log('🔍 Suggestions: Response:', result);
     return result.data || [];
 
   } catch (error) {
-    console.warn('Suggestions function error:', error);
+    console.warn('⚠️ Suggestions function error:', error);
     return [];
   }
 }
@@ -145,7 +170,6 @@ export async function preloadPopularSearches(): Promise<void> {
   // Run in background, don't await
   popularTerms.forEach(term => {
     searchPartsWithFacets(term).catch((error) => {
-      // Fixed: Provide proper error handling instead of empty function
       console.warn('Failed to preload search term:', term, error);
     });
   });
