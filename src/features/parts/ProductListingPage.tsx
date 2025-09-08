@@ -496,7 +496,8 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
             </div>
           </div>
 
-          console.log('PLP DEBUG: Render conditions - isLoading:', isLoading, 'error:', !!error, 'isRateLimited:', isRateLimited, 'totalResults:', totalResults);
+      console.log("PLP DEBUG: Render conditions - isLoading:", isLoading, "error:", !!error, "isRateLimited:", isRateLimited, "totalResults:", totalResults);
+
           {/* Results */}
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
