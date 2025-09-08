@@ -6,6 +6,7 @@
 [build.environment]
   CI = "false"
   GENERATE_SOURCEMAP = "false"
+  SECRETS_SCAN_OMIT_KEYS = "REACT_APP_GOOGLE_MAPS_API_KEY"
 
 # SPA redirect rules
 [[redirects]]
