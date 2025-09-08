@@ -242,8 +242,9 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
     }
   }, [safeSearchResponse.data, sidebarFilter, sort]);
 
-    console.log('🔍 PLP DEBUG: filteredAndSortedResults length:', filteredAndSortedResults.length);
-    console.log('🔍 PLP DEBUG: first result:', filteredAndSortedResults[0]);
+  console.log('🔍 PLP DEBUG: filteredAndSortedResults length:', filteredAndSortedResults.length);
+  console.log('🔍 PLP DEBUG: first result:', filteredAndSortedResults[0]);
+  console.log('🔍 PLP DEBUG: hasSearched:', hasSearched, 'query:', query);
 
   // Pagination - updated to use filtered results
   const totalResults = filteredAndSortedResults?.length || 0;
