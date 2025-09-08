@@ -1,4 +1,3 @@
-// Your exact original + facets only
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseAdmin = createClient(
@@ -25,8 +24,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { q: query, category, manufacturerId, limit = 1000 } =
-      event.queryStringParameters || {};
+    const { q: query, category, manufacturerId, limit = 1000 } = event.queryStringParameters || {};
 
     if (!query || query.trim().length < 2) {
       return {
@@ -38,51 +36,6 @@ exports.handler = async (event) => {
 
     const cleanQuery = query.trim().toLowerCase();
     const searchTerms = cleanQuery.split(/\s+/);
-
-    // Build raw SQL with trigram similarity
-    // Strategy:
-    //  - Match manufacturer name, part number, part description
-    //  - Rank by highest similarity
-    //  - Support multi-term (manufacturer + keyword/part number)
-    const sql = `
-      WITH manufacturer_matches AS (
-        SELECT id
-        FROM manufacturers
-        WHERE manufacturer % ANY($1)
-        ORDER BY GREATEST(${searchTerms.map((_, i) => `similarity(manufacturer, $1[${i + 1}])`).join(', ')}) DESC
-        LIMIT 20
-      )
-      SELECT 
-        p.*,
-        m.manufacturer,
-        GREATEST(
-          similarity(p.part_number, $2),
-          similarity(p.part_description, $2),
-          similarity(m.manufacturer, $2)
-        ) AS relevance
-      FROM parts p
-      JOIN manufacturers m ON p.manufacturer_id = m.id
-      WHERE 
-        (
-          p.part_number % $2 OR 
-          p.part_description % $2 OR
-          m.manufacturer % $2 OR
-          p.manufacturer_id IN (SELECT id FROM manufacturer_matches)
-        )
-        ${category && category !== 'all' ? `AND p.category = $3` : ''}
-        ${manufacturerId && manufacturerId !== 'all' ? `AND p.manufacturer_id = $4` : ''}
-      ORDER BY relevance DESC
-      LIMIT $5;
-    `;
-
-    const params = [
-      searchTerms, // $1: array of search tokens
-      cleanQuery,  // $2: full query string
-    ];
-
-    if (category && category !== 'all') params.push(category); // $3
-    if (manufacturerId && manufacturerId !== 'all') params.push(manufacturerId); // $4
-    params.push(Number(limit)); // $5
 
     const { data, error } = await supabaseAdmin.rpc('search_parts', {
       search_terms: searchTerms,
@@ -104,12 +57,12 @@ exports.handler = async (event) => {
     // Generate manufacturer facets from the results
     const facetMap = new Map();
     (data || []).forEach(part => {
-    if (part.manufacturer && part.manufacturer_id) {
+      if (part.manufacturer && part.manufacturer_id) {
         const id = part.manufacturer_id;
         const name = part.manufacturer;
         const current = facetMap.get(id) || { id, name, count: 0 };
         facetMap.set(id, { ...current, count: current.count + 1 });
-    }
+      }
     });
 
     const facets = Array.from(facetMap.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -129,7 +82,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Internal server error' })
+      body: JSON.stringify({ error: 'Internal server error: ' + err.message })
     };
   }
 };
