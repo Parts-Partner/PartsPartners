@@ -1,4 +1,4 @@
-// src/context/AuthContext.tsx - Updated for email confirmation flow
+// src/context/AuthContext.tsx - Fixed with better error handling
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from 'services/supabaseClient';
 
@@ -45,7 +45,10 @@ const Ctx = createContext<AuthCtx | null>(null);
 
 export const useAuth = () => {
   const ctx = useContext(Ctx);
-  if (!ctx) throw new Error('useAuth must be used within <AuthProvider>');
+  if (!ctx) {
+    console.error('useAuth must be used within <AuthProvider>');
+    throw new Error('useAuth must be used within <AuthProvider>');
+  }
   return ctx;
 };
 
@@ -57,31 +60,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     console.log('🔄 AuthProvider: Setting up auth listeners...');
     
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('🔄 AuthProvider: Initial session check:', session?.user?.email || 'No session');
-      if (session?.user) {
-        setUser(session.user);
-        fetchProfile(session.user.id);
+    // Add error boundary for initial session check
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('❌ AuthProvider: Session error:', error);
+          setLoading(false);
+          return;
+        }
+        
+        console.log('🔄 AuthProvider: Initial session check:', session?.user?.email || 'No session');
+        if (session?.user) {
+          setUser(session.user);
+          await fetchProfile(session.user.id);
+        }
+      } catch (error) {
+        console.error('❌ AuthProvider: Failed to get initial session:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+
+    initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 AuthProvider: Auth state changed:', event, session?.user?.email || 'No user');
-      
-      if (session?.user) {
-        setUser(session.user);
-        await fetchProfile(session.user.id);
-      } else {
-        setUser(null); 
+      try {
+        console.log('🔄 AuthProvider: Auth state changed:', event, session?.user?.email || 'No user');
+        
+        if (session?.user) {
+          setUser(session.user);
+          await fetchProfile(session.user.id);
+        } else {
+          setUser(null); 
+          setProfile(null);
+        }
+      } catch (error) {
+        console.error('❌ AuthProvider: Auth state change error:', error);
+        setUser(null);
         setProfile(null);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      try {
+        subscription.unsubscribe();
+      } catch (error) {
+        console.error('❌ AuthProvider: Error unsubscribing:', error);
+      }
+    };
   }, []);
 
   const fetchProfile = async (userId: string) => {
+    if (!userId) {
+      console.error('❌ AuthProvider: No userId provided to fetchProfile');
+      return;
+    }
+
     try {
       console.log('🔄 AuthProvider: Fetching profile for user:', userId);
       const { data, error } = await supabase
@@ -92,6 +128,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) {
         console.error('❌ AuthProvider: Error fetching profile:', error);
+        // Don't throw here - user might not have a profile yet
+        setProfile(null);
         return;
       }
       
@@ -99,19 +137,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfile(data as UserProfile | null);
     } catch (error) {
       console.error('❌ AuthProvider: Exception in fetchProfile:', error);
+      setProfile(null);
     }
   };
 
   const login = async (email: string, password: string) => {
+    if (!email || !password) {
+      throw new Error('Email and password are required');
+    }
+
     console.log('🔄 AuthProvider: Starting login for:', email);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     
-    if (error) {
-      console.error('❌ AuthProvider: Login error:', error);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      
+      if (error) {
+        console.error('❌ AuthProvider: Login error:', error);
+        throw error;
+      }
+      
+      console.log('✅ AuthProvider: Login successful for:', email);
+    } catch (error) {
+      console.error('❌ AuthProvider: Login exception:', error);
       throw error;
     }
-    
-    console.log('✅ AuthProvider: Login successful for:', email);
   };
 
   const signup = async (
@@ -130,14 +179,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signupData = emailOrData;
         console.log('🆕 AuthProvider: Using enhanced signup format');
       } else {
+        if (!password || !fullName) {
+          throw new Error('Password and full name are required for legacy signup format');
+        }
         signupData = {
           email: emailOrData,
-          password: password!,
-          fullName: fullName!,
+          password: password,
+          fullName: fullName,
           isServiceCompany: false,
           phone: ''
         };
         console.log('🔄 AuthProvider: Using legacy signup format');
+      }
+
+      if (!signupData.email || !signupData.password || !signupData.fullName) {
+        throw new Error('Email, password, and full name are required');
       }
 
       console.log('🔄 AuthProvider: Calling supabase.auth.signUp...');
@@ -225,7 +281,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('❌ AuthProvider: Exception creating profile:', profileError);
       }
 
-      // REMOVED: Auto-login attempt - users must confirm email first
       console.log('📧 AuthProvider: User must confirm email before logging in');
       console.log('📧 AuthProvider: Confirmation email sent to:', signupData.email);
 
@@ -239,13 +294,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => { 
-    console.log('🔄 AuthProvider: Logging out user');
-    await supabase.auth.signOut(); 
-    console.log('✅ AuthProvider: Logout completed');
+    try {
+      console.log('🔄 AuthProvider: Logging out user');
+      await supabase.auth.signOut(); 
+      console.log('✅ AuthProvider: Logout completed');
+    } catch (error) {
+      console.error('❌ AuthProvider: Logout error:', error);
+      // Still clear local state even if signOut fails
+      setUser(null);
+      setProfile(null);
+    }
+  };
+
+  // Provide safe defaults to prevent null context errors
+  const contextValue: AuthCtx = {
+    user: user || null,
+    profile: profile || null,
+    login,
+    signup,
+    logout,
+    loading
   };
 
   return (
-    <Ctx.Provider value={{ user, profile, login, signup, logout, loading }}>
+    <Ctx.Provider value={contextValue}>
       {children}
     </Ctx.Provider>
   );
