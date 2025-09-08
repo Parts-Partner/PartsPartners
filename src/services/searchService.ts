@@ -1,4 +1,4 @@
-// src/services/searchService.ts - Compatible with sidebar PLP
+// src/services/searchService.ts - Fixed ESLint error
 import type { Part } from 'services/partsService';
 
 interface SearchResponse {
@@ -144,6 +144,9 @@ export async function preloadPopularSearches(): Promise<void> {
   
   // Run in background, don't await
   popularTerms.forEach(term => {
-    searchPartsWithFacets(term).catch(() => {}); // Ignore errors
+    searchPartsWithFacets(term).catch((error) => {
+      // Fixed: Provide proper error handling instead of empty function
+      console.warn('Failed to preload search term:', term, error);
+    });
   });
 }

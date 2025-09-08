@@ -1,0 +1,11 @@
+# Netlify _redirects file
+# This file should be placed in the public/ directory
+
+# Handle client-side routing - redirect all non-file requests to index.html
+/*    /index.html   200
+
+# API routes should be handled by Netlify functions
+/api/*  /.netlify/functions/:splat  200
+
+# Static assets should be served directly (this is handled automatically by Netlify)
+# but you can add specific rules if needed
