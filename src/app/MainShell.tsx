@@ -41,6 +41,7 @@ const queryClient = new QueryClient({
 });
 
 const ShellInner: React.FC = () => {
+  const [isHydrated, setIsHydrated] = useState(false);
   const [page, setPage] = useState<
     'home' | 'search' | 'admin' | 'privacy' | 'terms' | 'cookies' | 'accessibility' |
     'shipping' | 'contact' | 'login' | 'checkout' | 'product' | 'profile' | 'order-confirmation'
@@ -53,6 +54,10 @@ const ShellInner: React.FC = () => {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const { profile } = useAuth();
   const { items, subtotal, add } = useCart();
+
+  useEffect(() => {
+  setIsHydrated(true);
+  }, []);
 
   // Listen for part view requests
   useEffect(() => {
@@ -99,6 +104,14 @@ const ShellInner: React.FC = () => {
     window.addEventListener('pp:navigate' as any, handler);
     return () => window.removeEventListener('pp:navigate' as any, handler);
   }, []);
+
+  if (!isHydrated) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+    </div>
+    );
+  }
 
   const nav = (p: string) => setPage(p as any);
 
