@@ -54,12 +54,22 @@ exports.handler = async (event) => {
       };
     }
 
+    // Transform the data to match PartsList expectations
+    const transformedData = (data || []).map(part => ({
+      ...part,
+      manufacturer: {
+        id: part.manufacturer_id || '',
+        manufacturer: part.manufacturer || '',
+        make: part.make || ''
+      }
+    }));
+
     // Generate manufacturer facets from the results
     const facetMap = new Map();
-    (data || []).forEach(part => {
+    transformedData.forEach(part => {
       if (part.manufacturer && part.manufacturer_id) {
         const id = part.manufacturer_id;
-        const name = part.manufacturer;
+        const name = part.manufacturer.manufacturer;
         const current = facetMap.get(id) || { id, name, count: 0 };
         facetMap.set(id, { ...current, count: current.count + 1 });
       }
@@ -71,9 +81,9 @@ exports.handler = async (event) => {
       statusCode: 200,
       headers,
       body: JSON.stringify({ 
-        data: data || [], 
+        data: transformedData, 
         facets: facets,
-        count: data?.length || 0 
+        count: transformedData.length 
       })
     };
 
