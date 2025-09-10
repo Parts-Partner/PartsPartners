@@ -42,13 +42,18 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
   const [sort, setSort] = useState<'relevance' | 'price_asc' | 'price_desc' | 'in_stock'>('relevance');
   const [pageSize, setPageSize] = useState(24);
   const [currentPage, setCurrentPage] = useState(1);
-
+  const [isMounted, setIsMounted] = useState(false);
+  
   // Load categories (still needed for other parts of the app)
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: listCategories,
     staleTime: 30 * 60 * 1000,
   });
+
+    useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Search query with facets - with proper error handling
   const { 
@@ -447,17 +452,23 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
           ) : (
             <>
               {/* Parts List */}
-              <PartsList
-                parts={currentResults}
-                loading={false}
-                discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
-                onAdd={add}
-                onUpdateQty={updateQty}
-                getQty={getCartQuantity}
-                onView={(part) => {
-                  window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
-                }}
+              {!isMounted ? (
+                <div className="flex justify-center items-center h-64">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+                </div>
+              ) : (
+                <PartsList
+                  parts={currentResults}
+                  loading={false}
+                  discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
+                  onAdd={add}
+                  onUpdateQty={updateQty}
+                  getQty={getCartQuantity}
+                  onView={(part) => {
+                    window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
+                  }}
               />
+              )}
 
               {/* Pagination */}
               {totalPages > 1 && (
