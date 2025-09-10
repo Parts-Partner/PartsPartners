@@ -528,6 +528,8 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
           ) : (
             <>
               {/* Parts List */}
+              {console.log("PLP DEBUG: About to render PartsList with:", currentResults.length, "results")}
+              {console.log("PLP DEBUG: First result for PartsList:", currentResults[0])}
               <PartsList
                 parts={currentResults}
                 loading={false}
@@ -536,7 +538,9 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
                 onUpdateQty={updateQty || (() => Promise.resolve())}
                 getQty={getCartQuantity}
                 onView={(part) => {
-                  window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part?.id } }));
+                  if (part?.id) {
+                    window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
+                  }
                 }}
               />
 
