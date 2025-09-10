@@ -315,31 +315,43 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
   console.log("PLP DEBUG: Render conditions - isLoading:", isLoading, "error:", !!error, "isRateLimited:", isRateLimited, "totalResults:", totalResults);
 
   // Transform search results to match PartsList expectations
-  const transformedResults = currentResults.map(part => {
-    const manufacturerData = part.manufacturer || {
-      id: part.manufacturer_id || '',
-      manufacturer: part.manufacturer_name || '',
-      make: part.make || ''
-    };
-
-    return {
-      id: part.id || '',
-      part_number: part.part_number || '',
-      part_description: part.part_description || '',
-      category: part.category || '',
-      list_price: part.list_price || 0,
-      compatible_models: part.compatible_models || [],
-      image_url: part.image_url || null,
-      in_stock: Boolean(part.in_stock),
-      manufacturer_id: part.manufacturer_id || '',
-      make_part_number: part.make_part_number || null,
-      manufacturer: {
-        id: manufacturerData.id || part.manufacturer_id || '',
-        manufacturer: manufacturerData.manufacturer || part.manufacturer_name || '',
-        make: manufacturerData.make || part.make || ''
+  // Transform search results with error handling
+  const transformedResults = currentResults.map((part, index) => {
+    try {
+      // Add debug logging for problematic parts
+      if (!part) {
+        console.error('PLP DEBUG: Null part at index:', index);
+        return null;
       }
-    };
-  });
+
+      const manufacturerData = part.manufacturer || {
+        id: part.manufacturer_id || '',
+        manufacturer: part.manufacturer_name || '',
+        make: part.make || ''
+      };
+
+      return {
+        id: part.id || `missing-id-${index}`,
+        part_number: part.part_number || 'No part number',
+        part_description: part.part_description || 'No description',
+        category: part.category || '',
+        list_price: parseFloat(part.list_price) || 0,
+        compatible_models: part.compatible_models || [],
+        image_url: part.image_url || null,
+        in_stock: Boolean(part.in_stock),
+        manufacturer_id: part.manufacturer_id || '',
+        make_part_number: part.make_part_number || null,
+        manufacturer: {
+          id: (manufacturerData && manufacturerData.id) || part.manufacturer_id || '',
+          manufacturer: (manufacturerData && manufacturerData.manufacturer) || part.manufacturer_name || '',
+          make: (manufacturerData && manufacturerData.make) || part.make || ''
+        }
+      };
+    } catch (error) {
+      console.error('PLP DEBUG: Error transforming part at index:', index, error, part);
+      return null;
+    }
+  }).filter(Boolean); // Remove any null results
 
   // Render homepage content if not searched
   if (!hasSearched) {
