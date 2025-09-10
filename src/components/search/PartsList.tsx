@@ -1,4 +1,5 @@
-import React from 'react';
+// src/components/search/PartsList.tsx - Add hydration protection
+import React, { useState, useEffect } from 'react';
 import type { Part } from 'services/partsService';
 
 // Define props interface
@@ -21,10 +22,26 @@ export const PartsList: React.FC<PartsListProps> = ({
   getQty,
   onView,
 }) => {
+  // Add hydration protection
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  // Show loading until client-side hydration is complete
+  if (!isClient) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600" />
       </div>
     );
   }
