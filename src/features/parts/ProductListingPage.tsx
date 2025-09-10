@@ -310,45 +310,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
 
   // Handle rate limiting error
   const isRateLimited = error?.message === 'RATE_LIMITED';
-  // Transform search results to match PartsList expectations
-  // Transform search results with error handling
-  const transformedResults = currentResults.map((part, index) => {
-    try {
-      // Add debug logging for problematic parts
-      if (!part) {
-        console.error('PLP DEBUG: Null part at index:', index);
-        return null;
-      }
-
-      const manufacturerData = part.manufacturer || {
-        id: part.manufacturer_id || '',
-        manufacturer: part.manufacturer_name || '',
-        make: part.make || ''
-      };
-
-      return {
-        id: part.id || `missing-id-${index}`,
-        part_number: part.part_number || 'No part number',
-        part_description: part.part_description || 'No description',
-        category: part.category || '',
-        list_price: parseFloat(part.list_price) || 0,
-        compatible_models: part.compatible_models || [],
-        image_url: part.image_url || null,
-        in_stock: Boolean(part.in_stock),
-        manufacturer_id: part.manufacturer_id || '',
-        make_part_number: part.make_part_number || null,
-        manufacturer: {
-          id: (manufacturerData && manufacturerData.id) || part.manufacturer_id || '',
-          manufacturer: (manufacturerData && manufacturerData.manufacturer) || part.manufacturer_name || '',
-          make: (manufacturerData && manufacturerData.make) || part.make || ''
-        }
-      };
-    } catch (error) {
-      console.error('PLP DEBUG: Error transforming part at index:', index, error, part);
-      return null;
-    }
-  }).filter(Boolean); // Remove any null results
-
+ 
   // Render homepage content if not searched
   if (!hasSearched) {
     return (
@@ -565,12 +527,22 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
             <NoResults onReset={resetToHomepage} />
           ) : (
             <>
-              <div className="text-center py-8">
-                <div className="text-xl font-bold">Search Results Found!</div>
-                <div>Total results: {totalResults}</div>
-                <div>Current page results: {currentResults.length}</div>
-                <div>First result ID: {currentResults[0]?.id}</div>
-              </div>
+              {/* Parts List */}
+              {console.log("PLP DEBUG: About to render PartsList with:", currentResults.length, "results")}
+              {console.log("PLP DEBUG: First result for PartsList:", currentResults[0])}
+              <PartsList
+                parts={currentResults}
+                loading={false}
+                discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
+                onAdd={add || (() => Promise.resolve())}
+                onUpdateQty={updateQty || (() => Promise.resolve())}
+                getQty={getCartQuantity}
+                onView={(part) => {
+                  if (part?.id) {
+                    window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
+                  }
+                }}
+              />
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="mt-8 flex items-center justify-between">
