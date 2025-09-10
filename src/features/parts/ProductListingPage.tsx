@@ -528,8 +528,9 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
               <h3 className="font-bold">Debug Info:</h3>
               <p>Results count: {currentResults.length}</p>
               <p>First result keys: {currentResults[0] ? Object.keys(currentResults[0]).join(', ') : 'No results'}</p>
-              <p>Manufacturer structure: {currentResults[0]?.manufacturer ? JSON.stringify(currentResults[0].manufacturer) : 'No manufacturer'}</p>
-              <p>Sample part data: {currentResults[0] ? JSON.stringify(currentResults[0], null, 2).substring(0, 200) + '...' : 'None'}</p>
+              <p>Manufacturer ID: {currentResults[0]?.manufacturer?.id || 'No ID'}</p>
+              <p>Manufacturer Name: {currentResults[0]?.manufacturer?.manufacturer || 'No name'}</p>
+              <p>Manufacturer Make: {currentResults[0]?.manufacturer?.make || 'No make'}</p>
             </div>
               
               {/* Simple safe display */}
