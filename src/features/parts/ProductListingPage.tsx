@@ -557,26 +557,18 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
             <NoResults onReset={resetToHomepage} />
           ) : (
             <>
-              {/* Parts List */}
-              {console.log("PLP DEBUG: About to render PartsList with:", currentResults.length, "results")}
-              {console.log("PLP DEBUG: First result for PartsList:", currentResults[0])}
-              <PartsList
-                parts={transformedResults || []}
-                loading={false}
-                discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
-                onAdd={add || (() => Promise.resolve())}
-                onUpdateQty={updateQty || (() => Promise.resolve())}
-                getQty={getCartQuantity}
-                onView={(part) => {
-                  try {
-                    if (part?.id) {
-                      window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
-                    }
-                  } catch (error) {
-                    console.error('Error in onView:', error);
-                  }
-                }}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {transformedResults.map((part, index) => (
+                <div key={part.id || index} className="bg-white border rounded-xl p-4">
+                  <div className="font-semibold">{part.part_number || 'No part number'}</div>
+                  <div className="text-sm text-gray-700">{part.part_description || 'No description'}</div>
+                  <div className="text-sm text-gray-500">
+                    {part.manufacturer?.manufacturer || 'No manufacturer'}
+                  </div>
+                  <div className="font-medium">${part.list_price || 0}</div>
+                </div>
+              ))}
+            </div>
 
               {/* Pagination */}
               {totalPages > 1 && (
