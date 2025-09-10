@@ -531,15 +531,19 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
               {console.log("PLP DEBUG: About to render PartsList with:", currentResults.length, "results")}
               {console.log("PLP DEBUG: First result for PartsList:", currentResults[0])}
               <PartsList
-                parts={currentResults}
+                parts={currentResults || []}
                 loading={false}
                 discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
                 onAdd={add || (() => Promise.resolve())}
                 onUpdateQty={updateQty || (() => Promise.resolve())}
                 getQty={getCartQuantity}
                 onView={(part) => {
-                  if (part?.id) {
-                    window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
+                  try {
+                    if (part?.id) {
+                      window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
+                    }
+                  } catch (error) {
+                    console.error('Error in onView:', error);
                   }
                 }}
               />
