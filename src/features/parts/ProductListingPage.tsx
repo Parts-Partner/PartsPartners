@@ -311,6 +311,36 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
   // Handle rate limiting error
   const isRateLimited = error?.message === 'RATE_LIMITED';
   console.log("PLP DEBUG: Render conditions - isLoading:", isLoading, "error:", !!error, "isRateLimited:", isRateLimited, "totalResults:", totalResults);
+  
+  console.log("PLP DEBUG: Render conditions - isLoading:", isLoading, "error:", !!error, "isRateLimited:", isRateLimited, "totalResults:", totalResults);
+
+  // Transform search results to match PartsList expectations
+  const transformedResults = currentResults.map(part => {
+    const manufacturerData = part.manufacturer || {
+      id: part.manufacturer_id || '',
+      manufacturer: part.manufacturer_name || '',
+      make: part.make || ''
+    };
+
+    return {
+      id: part.id || '',
+      part_number: part.part_number || '',
+      part_description: part.part_description || '',
+      category: part.category || '',
+      list_price: part.list_price || 0,
+      compatible_models: part.compatible_models || [],
+      image_url: part.image_url || null,
+      in_stock: Boolean(part.in_stock),
+      manufacturer_id: part.manufacturer_id || '',
+      make_part_number: part.make_part_number || null,
+      manufacturer: {
+        id: manufacturerData.id || part.manufacturer_id || '',
+        manufacturer: manufacturerData.manufacturer || part.manufacturer_name || '',
+        make: manufacturerData.make || part.make || ''
+      }
+    };
+  });
+
   // Render homepage content if not searched
   if (!hasSearched) {
     return (
@@ -531,7 +561,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
               {console.log("PLP DEBUG: About to render PartsList with:", currentResults.length, "results")}
               {console.log("PLP DEBUG: First result for PartsList:", currentResults[0])}
               <PartsList
-                parts={currentResults || []}
+                parts={transformedResults || []}
                 loading={false}
                 discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
                 onAdd={add || (() => Promise.resolve())}
