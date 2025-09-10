@@ -1,8 +1,8 @@
-// src/features/parts/ProductListingPage.tsx - Fixed React Error #31
+// src/features/parts/ProductListingPage.tsx - Full sidebar version
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { searchPartsWithFacets } from 'services/searchService';
-import { listCategories } from 'services/partsService';
+import { listCategories, listManufacturers } from 'services/partsService';
 import { useCart } from 'context/CartContext';
 import { useAuth, type UserProfile } from 'context/AuthContext';
 import { PartsList } from 'components/search/PartsList';
@@ -25,13 +25,9 @@ interface SearchResponse {
 }
 
 export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav }) => {
-  // Context - with null checks
-  const cartContext = useCart();
-  const authContext = useAuth();
-  
-  // Safely destructure with fallbacks
-  const { add, updateQty, items = [] } = cartContext || {};
-  const { profile } = authContext || {};
+  // Context
+  const { add, updateQty, items } = useCart();
+  const { profile } = useAuth();
 
   // Search state
   const [query, setQuery] = useState('');
@@ -47,17 +43,16 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
   const [pageSize, setPageSize] = useState(24);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Load categories with error handling
+  // Load categories (still needed for other parts of the app)
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: listCategories,
     staleTime: 30 * 60 * 1000,
-    retry: false,
   });
 
   // Search query with facets - with proper error handling
   const { 
-    data: searchResponse, 
+    data: searchResponse = { data: [], facets: [], count: 0 }, 
     isLoading, 
     error,
     refetch
@@ -65,32 +60,23 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
     queryKey: ['searchWithFacets', query.trim(), category, manufacturerId],
     queryFn: async (): Promise<SearchResponse> => {
       const trimmedQuery = query.trim();
-      if (!trimmedQuery) {
-        console.log('Empty query, returning empty results');
-        return { data: [], facets: [], count: 0 };
-      }
+      if (!trimmedQuery) return { data: [], facets: [], count: 0 };
       
       try {
-        console.log('PLP: Starting search for:', trimmedQuery);
         const result = await searchPartsWithFacets(
           trimmedQuery,
           category === 'all' ? undefined : category,
           manufacturerId === 'all' ? undefined : manufacturerId
         );
         
-        console.log('PLP: Search result:', result);
-        
         // Ensure we always return properly structured data
-        const safeResult = {
-          data: Array.isArray(result?.data) ? result.data : [],
-          facets: Array.isArray(result?.facets) ? result.facets : [],
-          count: typeof result?.count === 'number' ? result.count : 0
+        return {
+          data: Array.isArray(result.data) ? result.data : [],
+          facets: Array.isArray(result.facets) ? result.facets : [],
+          count: result.count || 0
         };
-        
-        console.log('PLP: Safe result:', safeResult);
-        return safeResult;
       } catch (err) {
-        console.error('PLP: Search error:', err);
+        console.error('Search error:', err);
         return { data: [], facets: [], count: 0 };
       }
     },
@@ -99,49 +85,28 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
     retry: false
   });
 
-  // Safe defaults for search response
-  const safeSearchResponse = useMemo(() => ({
-    data: searchResponse?.data || [],
-    facets: searchResponse?.facets || [],
-    count: searchResponse?.count || 0
-  }), [searchResponse]);
-
   // Handle search from external sources (Header, HomeMinimal)
   const handleExternalSearch = useCallback((payload: any) => {
-    try {
-      const searchQuery = payload?.q?.trim() || '';
-      const searchCategory = payload?.category || 'all';
-      const searchManufacturer = payload?.manufacturerId || 'all';
+    const searchQuery = payload.q?.trim() || '';
+    const searchCategory = payload.category || 'all';
+    const searchManufacturer = payload.manufacturerId || 'all';
 
-      console.log('🔍 PLP: External search received:', {
-        query: searchQuery,
-        category: searchCategory,
-        manufacturer: searchManufacturer
-      });
-
-      if (searchQuery) {
-        setQuery(searchQuery);
-        setCategory(searchCategory);
-        setManufacturerId(searchManufacturer);
-        setHasSearched(true);
-        setCurrentPage(1);
-        setSidebarFilter(''); // Clear sidebar filter on new search
-      }
-    } catch (error) {
-      console.error('❌ PLP: Error handling external search:', error);
+    if (searchQuery) {
+      setQuery(searchQuery);
+      setCategory(searchCategory);
+      setManufacturerId(searchManufacturer);
+      setHasSearched(true);
+      setCurrentPage(1);
+      setSidebarFilter(''); // Clear sidebar filter on new search
     }
   }, []);
 
   // Listen for external search events
   useEffect(() => {
     const handleSearchEvent = (e: Event) => {
-      try {
-        const detail = (e as CustomEvent)?.detail;
-        if (detail) {
-          handleExternalSearch(detail);
-        }
-      } catch (error) {
-        console.error('❌ PLP: Error in search event handler:', error);
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        handleExternalSearch(detail);
       }
     };
 
@@ -156,157 +121,115 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
 
   // Reset to homepage
   const resetToHomepage = useCallback(() => {
-    try {
-      console.log('🔍 PLP DEBUG: resetToHomepage called - resetting search state');
-      setQuery('');
-      setCategory('all');
-      setManufacturerId('all');
-      setHasSearched(false);
-      setCurrentPage(1);
-      setSidebarFilter('');
-    } catch (error: unknown) {
-      console.error('PLP: Error resetting to homepage:', error);
-    }
+    setQuery('');
+    setCategory('all');
+    setManufacturerId('all');
+    setHasSearched(false);
+    setCurrentPage(1);
+    setSidebarFilter('');
   }, []);
-  
 
   // Listen for homepage reset
   useEffect(() => {
-    const handleReset = () => {
-      try {
-        resetToHomepage();
-      } catch (error) {
-        console.error('❌ PLP: Error in reset handler:', error);
-      }
-    };
-    
+    const handleReset = () => resetToHomepage();
     window.addEventListener('pp:goHome' as any, handleReset);
     return () => window.removeEventListener('pp:goHome' as any, handleReset);
   }, [resetToHomepage]);
 
   // Handle manufacturer selection from sidebar
   const handleManufacturerSelect = useCallback((manufacturerIdSelected: string | null) => {
-    try {
-      setManufacturerId(manufacturerIdSelected || 'all');
-      setCurrentPage(1);
-    } catch (error) {
-      console.error('❌ PLP: Error selecting manufacturer:', error);
-    }
+    setManufacturerId(manufacturerIdSelected || 'all');
+    setCurrentPage(1);
   }, []);
 
-  // Filter and sort results with error handling
+  // Filter and sort results
   const filteredAndSortedResults = useMemo(() => {
-    try {
-      if (!safeSearchResponse?.data || !Array.isArray(safeSearchResponse.data)) {
-        console.log('🔍 PLP: No valid search data');
-        return [];
-      }
-      
-      let filtered = [...safeSearchResponse.data];
-      
-      // Apply sidebar filter
-      if (sidebarFilter?.trim()) {
-        const filterTerm = sidebarFilter.toLowerCase().trim();
-        filtered = filtered.filter(part => {
-          if (!part) return false;
-          const partNumber = part.part_number?.toLowerCase() || '';
-          const partDescription = part.part_description?.toLowerCase() || '';
-          return partNumber.includes(filterTerm) || partDescription.includes(filterTerm);
-        });
-      }
-      
-      // Apply sorting
-      switch (sort) {
-        case 'price_asc':
-          return filtered.sort((a, b) => {
-            const priceA = parseFloat(String(a?.list_price || '0'));
-            const priceB = parseFloat(String(b?.list_price || '0'));
-            return priceA - priceB;
-          });
-        case 'price_desc':
-          return filtered.sort((a, b) => {
-            const priceA = parseFloat(String(a?.list_price || '0'));
-            const priceB = parseFloat(String(b?.list_price || '0'));
-            return priceB - priceA;
-          });
-        case 'in_stock':
-          return filtered.sort((a, b) => {
-            const stockA = a?.in_stock ? 1 : 0;
-            const stockB = b?.in_stock ? 1 : 0;
-            return stockB - stockA;
-          });
-        default:
-          return filtered;
-      }
-    } catch (error) {
-      console.error('❌ PLP: Error filtering/sorting results:', error);
-      return [];
+    if (!searchResponse?.data) return [];
+    
+    let filtered = [...searchResponse.data];
+    
+    // Apply sidebar filter
+    if (sidebarFilter.trim()) {
+      const filterTerm = sidebarFilter.toLowerCase().trim();
+      filtered = filtered.filter(part => 
+        part.part_number?.toLowerCase().includes(filterTerm) ||
+        part.part_description?.toLowerCase().includes(filterTerm)
+      );
     }
-  }, [safeSearchResponse.data, sidebarFilter, sort]);
+    
+    // Apply sorting
+    switch (sort) {
+      case 'price_asc':
+        return filtered.sort((a, b) => {
+          const priceA = parseFloat(String(a.list_price || '0'));
+          const priceB = parseFloat(String(b.list_price || '0'));
+          return priceA - priceB;
+        });
+      case 'price_desc':
+        return filtered.sort((a, b) => {
+          const priceA = parseFloat(String(a.list_price || '0'));
+          const priceB = parseFloat(String(b.list_price || '0'));
+          return priceB - priceA;
+        });
+      case 'in_stock':
+        return filtered.sort((a, b) => Number(b.in_stock) - Number(a.in_stock));
+      default:
+        return filtered;
+    }
+  }, [searchResponse.data, sidebarFilter, sort]);
 
   // Pagination - updated to use filtered results
   const totalResults = filteredAndSortedResults.length;
   const totalPages = Math.ceil(totalResults / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const currentResults = filteredAndSortedResults?.slice(startIndex, endIndex) || [];
+  const currentResults = filteredAndSortedResults.slice(startIndex, endIndex);
 
   // Active filter chips - adapted for sidebar
   const activeFilters = useMemo(() => {
-    try {
-      const filters: Array<{ label: string; clear: () => void }> = [];
-      
-      if (category !== 'all') {
+    const filters: Array<{ label: string; clear: () => void }> = [];
+    
+    if (category !== 'all') {
+      filters.push({
+        label: category,
+        clear: () => {
+          setCategory('all');
+          if (hasSearched) refetch();
+        }
+      });
+    }
+    
+    if (manufacturerId !== 'all') {
+      const manufacturer = (searchResponse?.facets || []).find(f => f.id === manufacturerId);
+      if (manufacturer) {
         filters.push({
-          label: category,
+          label: manufacturer.name,
           clear: () => {
-            setCategory('all');
-            if (hasSearched && refetch) refetch();
+            setManufacturerId('all');
+            if (hasSearched) refetch();
           }
         });
       }
-      
-      if (manufacturerId !== 'all') {
-        const manufacturer = safeSearchResponse?.facets?.find(f => f?.id === manufacturerId);
-        if (manufacturer?.name) {
-          filters.push({
-            label: manufacturer.name,
-            clear: () => {
-              setManufacturerId('all');
-              if (hasSearched && refetch) refetch();
-            }
-          });
-        }
-      }
-
-      if (sidebarFilter?.trim()) {
-        filters.push({
-          label: `Filter: "${sidebarFilter}"`,
-          clear: () => setSidebarFilter('')
-        });
-      }
-      
-      return filters;
-    } catch (error) {
-      console.error('❌ PLP: Error creating active filters:', error);
-      return [];
     }
-  }, [category, manufacturerId, sidebarFilter, safeSearchResponse?.facets, hasSearched, refetch]);
 
-  // Cart quantity helper with error handling
+    if (sidebarFilter.trim()) {
+      filters.push({
+        label: `Filter: "${sidebarFilter}"`,
+        clear: () => setSidebarFilter('')
+      });
+    }
+    
+    return filters;
+  }, [category, manufacturerId, sidebarFilter, searchResponse?.facets, hasSearched, refetch]);
+
+  // Cart quantity helper
   const getCartQuantity = useCallback((partId: string) => {
-    try {
-      if (!partId || !items || !Array.isArray(items)) return 0;
-      return items.find(item => item?.id === partId)?.quantity || 0;
-    } catch (error: unknown) {
-      console.error('PLP: Error getting cart quantity:', error);
-      return 0;
-    }
+    return items.find(item => item.id === partId)?.quantity || 0;
   }, [items]);
 
   // Handle rate limiting error
   const isRateLimited = error?.message === 'RATE_LIMITED';
- 
+
   // Render homepage content if not searched
   if (!hasSearched) {
     return (
@@ -365,7 +288,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
           {totalResults.toLocaleString()} parts found
           {sidebarFilter.trim() && (
             <div className="text-xs text-gray-500 mt-1">
-              (filtered from {safeSearchResponse?.data?.length || 0} total)
+              (filtered from {searchResponse?.data?.length || 0} total)
             </div>
           )}
         </div>
@@ -405,28 +328,28 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
           </div>
           
           <div className="space-y-1 max-h-80 overflow-y-auto">
-            {(safeSearchResponse?.facets || []).map((facet) => (
+            {(searchResponse?.facets || []).map((facet) => (
               <button
-                key={facet?.id || 'unknown'}
+                key={facet.id}
                 onClick={() => handleManufacturerSelect(
-                  manufacturerId === facet?.id ? null : facet?.id
+                  manufacturerId === facet.id ? null : facet.id
                 )}
                 className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                  manufacturerId === facet?.id
+                  manufacturerId === facet.id
                     ? 'bg-red-50 text-red-700 border border-red-200'
                     : 'hover:bg-gray-50 text-gray-700'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium truncate">
-                    {facet?.name || 'Unknown'}
+                    {facet.name}
                   </span>
                   <span className={`text-xs px-2 py-1 rounded-full ${
-                    manufacturerId === facet?.id
+                    manufacturerId === facet.id
                       ? 'bg-red-100 text-red-700'
                       : 'bg-gray-100 text-gray-600'
                   }`}>
-                    {facet?.count || 0}
+                    {facet.count}
                   </span>
                 </div>
               </button>
@@ -501,7 +424,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
             <div className="text-center py-12">
               <div className="text-red-600 mb-4">Search failed. Please try again.</div>
               <button
-                onClick={() => refetch && refetch()}
+                onClick={() => refetch()}
                 className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
                 Retry Search
@@ -523,28 +446,19 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
             <NoResults onReset={resetToHomepage} />
           ) : (
             <>
-            {/* Debug the data structure */}
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
-              <h3 className="font-bold">Debug Info:</h3>
-              <p>Results count: {currentResults.length}</p>
-              <p>First result keys: {currentResults[0] ? Object.keys(currentResults[0]).join(', ') : 'No results'}</p>
-              <p>Manufacturer ID: {currentResults[0]?.manufacturer?.id || 'No ID'}</p>
-              <p>Manufacturer Name: {currentResults[0]?.manufacturer?.manufacturer || 'No name'}</p>
-              <p>Manufacturer Make: {currentResults[0]?.manufacturer?.make || 'No make'}</p>
-            </div>
-              
-              {/* Simple safe display */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {currentResults.slice(0, 6).map((part, index) => (
-                  <div key={index} className="bg-white border rounded p-4">
-                    <div>ID: {part?.id || 'No ID'}</div>
-                    <div>Part: {part?.part_number || 'No part number'}</div>
-                    <div>Price: {part?.list_price || 'No price'}</div>
-                    <div>Manufacturer: {part?.manufacturer?.manufacturer || 'No manufacturer'}</div>
-                  </div>
-                ))}
-              </div>
-              
+              {/* Parts List */}
+              <PartsList
+                parts={currentResults}
+                loading={false}
+                discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
+                onAdd={add}
+                onUpdateQty={updateQty}
+                getQty={getCartQuantity}
+                onView={(part) => {
+                  window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
+                }}
+              />
+
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="mt-8 flex items-center justify-between">
