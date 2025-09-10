@@ -244,10 +244,6 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
     }
   }, [safeSearchResponse.data, sidebarFilter, sort]);
 
-  console.log('🔍 PLP DEBUG: filteredAndSortedResults length:', filteredAndSortedResults.length);
-  console.log('🔍 PLP DEBUG: first result:', filteredAndSortedResults[0]);
-  console.log('🔍 PLP DEBUG: hasSearched:', hasSearched, 'query:', query);
-
   // Pagination - updated to use filtered results
   const totalResults = filteredAndSortedResults.length;
   const totalPages = Math.ceil(totalResults / pageSize);
@@ -527,13 +523,14 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
             <NoResults onReset={resetToHomepage} />
           ) : (
             <>
-              {/* Debug the data structure */}
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
-                <h3 className="font-bold">Debug Info:</h3>
-                <p>Results count: {currentResults.length}</p>
-                <p>First result keys: {currentResults[0] ? Object.keys(currentResults[0]).join(', ') : 'No results'}</p>
-                <p>Manufacturer structure: {currentResults[0]?.manufacturer ? JSON.stringify(currentResults[0].manufacturer) : 'No manufacturer'}</p>
-              </div>
+            {/* Debug the data structure */}
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+              <h3 className="font-bold">Debug Info:</h3>
+              <p>Results count: {currentResults.length}</p>
+              <p>First result keys: {currentResults[0] ? Object.keys(currentResults[0]).join(', ') : 'No results'}</p>
+              <p>Manufacturer structure: {currentResults[0]?.manufacturer ? JSON.stringify(currentResults[0].manufacturer) : 'No manufacturer'}</p>
+              <p>Sample part data: {currentResults[0] ? JSON.stringify(currentResults[0], null, 2).substring(0, 200) + '...' : 'None'}</p>
+            </div>
               
               {/* Simple safe display */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
