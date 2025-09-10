@@ -310,10 +310,6 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
 
   // Handle rate limiting error
   const isRateLimited = error?.message === 'RATE_LIMITED';
-  console.log("PLP DEBUG: Render conditions - isLoading:", isLoading, "error:", !!error, "isRateLimited:", isRateLimited, "totalResults:", totalResults);
-  
-  console.log("PLP DEBUG: Render conditions - isLoading:", isLoading, "error:", !!error, "isRateLimited:", isRateLimited, "totalResults:", totalResults);
-
   // Transform search results to match PartsList expectations
   // Transform search results with error handling
   const transformedResults = currentResults.map((part, index) => {
