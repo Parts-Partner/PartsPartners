@@ -310,7 +310,7 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
 
   // Handle rate limiting error
   const isRateLimited = error?.message === 'RATE_LIMITED';
-
+  console.log("PLP DEBUG: Render conditions - isLoading:", isLoading, "error:", !!error, "isRateLimited:", isRateLimited, "totalResults:", totalResults);
   // Render homepage content if not searched
   if (!hasSearched) {
     return (
@@ -495,8 +495,6 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
               </select>
             </div>
           </div>
-
-      console.log("PLP DEBUG: Render conditions - isLoading:", isLoading, "error:", !!error, "isRateLimited:", isRateLimited, "totalResults:", totalResults);
 
           {/* Results */}
           {isLoading ? (
