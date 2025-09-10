@@ -527,22 +527,26 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
             <NoResults onReset={resetToHomepage} />
           ) : (
             <>
-              {/* Parts List */}
-              {console.log("PLP DEBUG: About to render PartsList with:", currentResults.length, "results")}
-              {console.log("PLP DEBUG: First result for PartsList:", currentResults[0])}
-              <PartsList
-                parts={currentResults}
-                loading={false}
-                discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
-                onAdd={add || (() => Promise.resolve())}
-                onUpdateQty={updateQty || (() => Promise.resolve())}
-                getQty={getCartQuantity}
-                onView={(part) => {
-                  if (part?.id) {
-                    window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
-                  }
-                }}
-              />
+              {/* Debug the data structure */}
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+                <h3 className="font-bold">Debug Info:</h3>
+                <p>Results count: {currentResults.length}</p>
+                <p>First result keys: {currentResults[0] ? Object.keys(currentResults[0]).join(', ') : 'No results'}</p>
+                <p>Manufacturer structure: {currentResults[0]?.manufacturer ? JSON.stringify(currentResults[0].manufacturer) : 'No manufacturer'}</p>
+              </div>
+              
+              {/* Simple safe display */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {currentResults.slice(0, 6).map((part, index) => (
+                  <div key={index} className="bg-white border rounded p-4">
+                    <div>ID: {part?.id || 'No ID'}</div>
+                    <div>Part: {part?.part_number || 'No part number'}</div>
+                    <div>Price: {part?.list_price || 'No price'}</div>
+                    <div>Manufacturer: {part?.manufacturer?.manufacturer || 'No manufacturer'}</div>
+                  </div>
+                ))}
+              </div>
+              
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="mt-8 flex items-center justify-between">
