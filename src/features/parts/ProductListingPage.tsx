@@ -269,5 +269,72 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
     );
   }
 
+  return (
+    <div className="flex h-screen">
+      {/* Main content area */}
+      <div className="w-full overflow-y-auto">
+        <div className="max-w-6xl mx-auto px-6 py-6">
+          {/* Search Results Header */}
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="text-sm text-gray-500">
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                  Searching...
+                </span>
+              ) : isRateLimited ? (
+                <span className="text-red-600">Search rate limited - please slow down</span>
+              ) : error ? (
+                <span className="text-red-600">Search failed - please try again</span>
+              ) : (
+                <>
+                  Showing <span className="font-semibold text-gray-900">{totalResults.toLocaleString()}</span> results for
+                </>
+              )}
+            </div>
+            
+            {!isLoading && !error && (
+              <div className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700 text-sm font-semibold">
+                &quot;{query}&quot;
+              </div>
+            )}
+          </div>
 
+          {/* Results */}
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <div className="text-red-600 mb-4">Search failed. Please try again.</div>
+            </div>
+          ) : totalResults === 0 ? (
+            <NoResults onReset={resetToHomepage} />
+          ) : (
+            <>
+              {/* Parts List */}
+              {!isMounted ? (
+                <div className="flex justify-center items-center h-64">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+                </div>
+              ) : (
+                <PartsList
+                  parts={currentResults}
+                  loading={false}
+                  discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
+                  onAdd={add}
+                  onUpdateQty={updateQty}
+                  getQty={getCartQuantity}
+                  onView={(part) => {
+                    window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
+                  }}
+                />
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
