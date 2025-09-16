@@ -55,22 +55,44 @@ const ShellInner: React.FC = () => {
   const { profile } = useAuth();
   const { items, subtotal, add } = useCart();
 
+  // Listen for search events and navigate to search page
   useEffect(() => {
-  setIsHydrated(true);
-  }, []);
-
-  // Listen for part view requests
-  useEffect(() => {
-    const onView = (e: Event) => {
-      const { id } = (e as CustomEvent).detail || {};
-      if (!id) return;
-      setSelectedPartId(String(id));
-      setPage('product');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    const handleSearchNavigation = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.q?.trim()) {
+        // Navigate to search page if not already there
+        if (page !== 'search') {
+          setPage('search');
+        }
+      }
     };
-    window.addEventListener('pp:viewPart' as any, onView);
-    return () => window.removeEventListener('pp:viewPart' as any, onView);
-  }, []);
+
+    window.addEventListener('pp:search', handleSearchNavigation);
+    window.addEventListener('pp:do-search', handleSearchNavigation);
+
+    return () => {
+      window.removeEventListener('pp:search', handleSearchNavigation);
+      window.removeEventListener('pp:do-search', handleSearchNavigation);
+    };
+  }, [page]);
+
+
+    useEffect(() => {
+    setIsHydrated(true);
+    }, []);
+
+    // Listen for part view requests
+    useEffect(() => {
+      const onView = (e: Event) => {
+        const { id } = (e as CustomEvent).detail || {};
+        if (!id) return;
+        setSelectedPartId(String(id));
+        setPage('product');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+      window.addEventListener('pp:viewPart' as any, onView);
+      return () => window.removeEventListener('pp:viewPart' as any, onView);
+    }, []);
 
   // Listen for bulk order modal requests
   useEffect(() => {
@@ -116,27 +138,6 @@ const ShellInner: React.FC = () => {
   const nav = (p: string) => setPage(p as any);
 
   // In MainShell.tsx, add this new event listener after the existing ones:
-
-  // Listen for search events and navigate to search page
-  useEffect(() => {
-    const handleSearchNavigation = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.q?.trim()) {
-        // Navigate to search page if not already there
-        if (page !== 'search') {
-          setPage('search');
-        }
-      }
-    };
-
-    window.addEventListener('pp:search', handleSearchNavigation);
-    window.addEventListener('pp:do-search', handleSearchNavigation);
-
-    return () => {
-      window.removeEventListener('pp:search', handleSearchNavigation);
-      window.removeEventListener('pp:do-search', handleSearchNavigation);
-    };
-  }, [page]);
 
   // Handle search from HomeMinimal - transition to ProductListingPage
   const handleHomepageSearch = (query: string) => {
