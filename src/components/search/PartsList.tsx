@@ -1,4 +1,4 @@
-// src/components/search/PartsList.tsx - Add hydration protection
+// src/components/search/PartsList.tsx - Fixed object rendering issue
 import React, { useState, useEffect } from 'react';
 import type { Part } from 'services/partsService';
 
@@ -28,6 +28,22 @@ export const PartsList: React.FC<PartsListProps> = ({
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // HELPER FUNCTIONS TO SAFELY HANDLE MANUFACTURER DATA
+  const getManufacturerName = (manufacturer: any): string => {
+    if (typeof manufacturer === 'string') return manufacturer;
+    if (typeof manufacturer === 'object' && manufacturer?.manufacturer) {
+      return manufacturer.manufacturer;
+    }
+    return 'Unknown Manufacturer';
+  };
+
+  const getMake = (manufacturer: any): string => {
+    if (typeof manufacturer === 'object' && manufacturer?.make) {
+      return manufacturer.make;
+    }
+    return '';
+  };
 
   if (loading) {
     return (
@@ -78,9 +94,10 @@ export const PartsList: React.FC<PartsListProps> = ({
               onClick={open}
               aria-label={`View ${p.part_number}`}
             >
+              {/* FIXED: Safe manufacturer rendering */}
               <div className="text-xs text-gray-500">
-                {p.manufacturer?.manufacturer}
-                {p.manufacturer?.make && ` • ${p.manufacturer.make}`}
+                {getManufacturerName(p.manufacturer)}
+                {getMake(p.manufacturer) && ` • ${getMake(p.manufacturer)}`}
               </div>
               <div className="font-semibold text-lg underline decoration-transparent hover:decoration-slate-300">
                 {p.part_number}
@@ -109,36 +126,36 @@ export const PartsList: React.FC<PartsListProps> = ({
               {qty > 0 ? (
                 <div className="flex items-center gap-2">
                   <button
-                    type="button"
-                    className="px-3 py-2 border rounded"
-                    onClick={async () => await onUpdateQty(p.id, Math.max(0, qty - 1))}
+                    onClick={() => onUpdateQty(p.id, qty - 1)}
+                    className="w-8 h-8 flex items-center justify-center border rounded text-gray-600 hover:bg-gray-50"
                   >
                     -
                   </button>
-                  <div className="w-8 text-center">{qty}</div>
+                  <span className="w-8 text-center text-sm font-medium">
+                    {qty}
+                  </span>
                   <button
-                    type="button"
-                    className="px-3 py-2 border rounded"
-                    onClick={async () => await onUpdateQty(p.id, qty + 1)}
+                    onClick={() => onUpdateQty(p.id, qty + 1)}
+                    className="w-8 h-8 flex items-center justify-center border rounded text-gray-600 hover:bg-gray-50"
                   >
                     +
                   </button>
                 </div>
               ) : (
-                  <button
-                    type="button"
-                    className="px-4 py-2 rounded bg-slate-900 text-white hover:bg-black"
-                    onClick={async () => await onAdd(p, 1)}
-                  >
-                  Add to cart
+                <button
+                  onClick={() => onAdd(p, 1)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold"
+                >
+                  Add to Cart
                 </button>
               )}
-              <div
-                className={`text-xs ${
-                  p.in_stock ? 'text-green-700' : 'text-gray-500'
-                }`}
-              >
-                {p.in_stock ? 'In stock' : 'Backorder'}
+
+              <div className="text-xs text-gray-500">
+                {p.in_stock ? (
+                  <span className="text-green-600">✓ In Stock</span>
+                ) : (
+                  <span className="text-red-600">Out of Stock</span>
+                )}
               </div>
             </div>
           </div>
