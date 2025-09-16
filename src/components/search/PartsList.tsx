@@ -30,32 +30,44 @@ export const PartsList: React.FC<PartsListProps> = ({
   }, []);
 
   // ULTRA-SAFE HELPER FUNCTIONS
-  const getManufacturerName = (manufacturer: any): string => {
-    try {
-      // Handle null/undefined
-      if (!manufacturer) return 'Unknown';
-      
-      // Handle string
-      if (typeof manufacturer === 'string') {
-        return manufacturer.trim() || 'Unknown';
-      }
-      
-      // Handle object
-      if (typeof manufacturer === 'object') {
-        if (manufacturer.manufacturer && typeof manufacturer.manufacturer === 'string') {
-          return manufacturer.manufacturer.trim() || 'Unknown';
-        }
-        if (manufacturer.name && typeof manufacturer.name === 'string') {
-          return manufacturer.name.trim() || 'Unknown';
-        }
-      }
-      
-      return 'Unknown';
-    } catch (error) {
-      console.error('Error getting manufacturer name:', error, manufacturer);
-      return 'Error';
+const getManufacturerName = (manufacturer: any): string => {
+  try {
+    // Handle null/undefined
+    if (!manufacturer) return '';
+    
+    // Handle string
+    if (typeof manufacturer === 'string') {
+      return manufacturer.trim();
     }
-  };
+    
+    // Handle object - try all possible property names
+    if (typeof manufacturer === 'object') {
+      // Common property names for manufacturer
+      const possibleKeys = [
+        'manufacturer', 'manufacturer_name', 'name', 
+        'brand', 'company', 'vendor', 'make'
+      ];
+      
+      for (const key of possibleKeys) {
+        if (manufacturer[key] && typeof manufacturer[key] === 'string') {
+          return manufacturer[key].trim();
+        }
+      }
+      
+      // If object has no recognizable manufacturer property, try first string value
+      for (const [key, value] of Object.entries(manufacturer)) {
+        if (typeof value === 'string' && value.trim()) {
+          return value.trim();
+        }
+      }
+    }
+    
+    return '';
+  } catch (error) {
+    console.error('Error getting manufacturer name:', error);
+    return '';
+  }
+};
 
   const getMake = (manufacturer: any): string => {
     try {
