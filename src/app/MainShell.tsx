@@ -67,6 +67,8 @@ const ShellInner: React.FC = () => {
       }
     };
 
+    
+
     window.addEventListener('pp:search', handleSearchNavigation);
     window.addEventListener('pp:do-search', handleSearchNavigation);
 
