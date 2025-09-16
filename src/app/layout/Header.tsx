@@ -1,4 +1,4 @@
-// src/app/layout/Header.tsx - Fixed implicit any type errors
+// src/app/layout/Header.tsx - Complete updated version with onSearch prop
 import React, { useEffect, useRef, useState } from 'react';
 import { ShoppingCart, User, LogOut } from 'lucide-react';
 import { useCart } from 'context/CartContext';
@@ -7,9 +7,14 @@ import { SearchBar, SearchBarRef } from 'components/search/SearchBarComponent';
 import { Filters } from 'components/search/Filters';
 import { listCategories, listManufacturers } from 'services/partsService';
 
-type Props = { onNav: (page: string) => void; onOpenCart: () => void };
+// UPDATED: Add onSearch to Props interface
+type Props = { 
+  onNav: (page: string) => void; 
+  onOpenCart: () => void;
+  onSearch: (query: string, category?: string, manufacturerId?: string) => void;
+};
 
-export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
+export const Header: React.FC<Props> = ({ onNav, onOpenCart, onSearch }) => {
   const { count } = useCart();
   const { user, logout } = useAuth();
 
@@ -51,10 +56,8 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
         const wasCompact = showCompact;
         const isCompact = !entry.isIntersecting;
         
-        // Show compact header when main header is NOT intersecting (i.e., scrolled past)
         setShowCompact(isCompact);
         
-        // If transitioning from compact to main header, clear compact search suggestions
         if (wasCompact && !isCompact && compactSearchRef.current?.clearSuggestions) {
           compactSearchRef.current.clearSuggestions();
         }
@@ -77,14 +80,12 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
     const onDoc = (e: MouseEvent) => {
       const t = e.target as Node;
       
-      // Check main flyout
       if (showBulkMain) {
         if (!flyoutMainRef.current?.contains(t) && !btnMainRef.current?.contains(t)) {
           setShowBulkMain(false);
         }
       }
       
-      // Check compact flyout
       if (showBulkCompact) {
         if (!flyoutCompactRef.current?.contains(t) && !btnCompactRef.current?.contains(t)) {
           setShowBulkCompact(false);
@@ -95,35 +96,24 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [showBulkMain, showBulkCompact]);
 
-  const fireSearch = (payload?: { q?: string; category?: string; manufacturerId?: string }) => {
-    const searchQuery = payload?.q || q || qCompact;
-    const searchCategory = payload?.category || category;
-    const searchManufacturerId = payload?.manufacturerId || manufacturerId;
-    
-    const detail = { 
-      q: searchQuery, 
-      category: searchCategory, 
-      manufacturerId: searchManufacturerId,
-      ...payload 
-    };
-    
-    console.log('🔥 Header: Dispatching search event with detail:', detail);
-    
-    // Dispatch both events for compatibility
-    window.dispatchEvent(new CustomEvent('pp:search', { detail }));
-    window.dispatchEvent(new CustomEvent('pp:do-search', { detail }));
+  // UPDATED: Use direct function calls instead of events
+  const handleMainSearchSubmit = (val: string) => {
+    onSearch(val, category, manufacturerId);
+  };
+
+  const handleCompactSearchSubmit = (val: string) => {
+    onSearch(val, category, manufacturerId);
   };
 
   const handleLogout = async () => {
     try {
       await logout();
-      onNav('home'); // Navigate to home instead of search
+      onNav('home');
     } catch (error) {
       console.error('Logout failed:', error);
     }
   };
 
-  // Handle homepage navigation - updated to go to 'home' page
   const goToHomepage = () => {
     // Reset header search state
     setQ('');
@@ -131,43 +121,35 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
     setCategory('all');
     setManufacturerId('all');
     
-    // Clear compact search suggestions if they exist
     if (compactSearchRef.current?.clearSuggestions) {
       compactSearchRef.current.clearSuggestions();
     }
     
-    // Navigate to home page (not search)
     onNav('home');
-    
-    // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const submitBulk = () => {
     if (!bulkText.trim()) return;
     
-    console.log('🔥 Header: Submitting bulk text:', bulkText);
+    console.log('📋 Header: Submitting bulk text:', bulkText);
     
-    // Close flyouts first
     setShowBulkMain(false);
     setShowBulkCompact(false);
     
-    // Dispatch event to show bulk order modal with the text
     window.dispatchEvent(new CustomEvent('pp:showBulkOrderModal', { 
       detail: { initialText: bulkText } 
     }));
     
-    // Clear the text after dispatching
     setBulkText('');
   };
 
-  // Handle search submit with explicit typing
-  const handleMainSearchSubmit = (val: string) => {
-    fireSearch({ q: val });
-  };
-
-  const handleCompactSearchSubmit = (val: string) => {
-    fireSearch({ q: val });
+  // Apply filters and trigger search
+  const applyFilters = () => {
+    const searchQuery = q || qCompact;
+    if (searchQuery.trim()) {
+      onSearch(searchQuery, category, manufacturerId);
+    }
   };
 
   const Brand = (
@@ -189,7 +171,6 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
 
   const Icons = (
     <div className="flex items-center gap-2">
-      {/* Cart Button */}
       <button
         className="relative p-2 rounded text-slate-700 hover:bg-gray-100"
         onClick={onOpenCart}
@@ -203,229 +184,178 @@ export const Header: React.FC<Props> = ({ onNav, onOpenCart }) => {
         )}
       </button>
 
-      {/* Authentication Buttons */}
       {user ? (
-        // User is logged in - show profile and logout buttons
-        <>
+        <div className="flex items-center gap-2">
           <button
-            className="p-2 rounded text-slate-700 hover:bg-gray-100"
             onClick={() => onNav('profile')}
-            aria-label="Profile"
-            title="View Profile"
+            className="flex items-center gap-2 px-3 py-2 rounded text-slate-700 hover:bg-gray-100"
           >
-            <User />
+            <User size={18} />
+            <span className="hidden sm:inline text-sm">Profile</span>
           </button>
           <button
-            className="flex items-center gap-1 px-3 py-2 rounded text-slate-700 hover:bg-gray-100 text-sm font-medium"
             onClick={handleLogout}
-            aria-label="Logout"
-            title="Sign Out"
+            className="flex items-center gap-2 px-3 py-2 rounded text-slate-700 hover:bg-gray-100"
           >
-            <LogOut size={16} />
-            Logout
+            <LogOut size={18} />
+            <span className="hidden sm:inline text-sm">Logout</span>
           </button>
-        </>
+        </div>
       ) : (
-        // User is not logged in - show login button
         <button
-          className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm font-medium transition-colors"
           onClick={() => onNav('login')}
-          aria-label="Login"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-sm"
         >
-          Login
+          <User size={18} />
+          <span>Sign In</span>
         </button>
       )}
     </div>
   );
 
-  const BulkFlyoutMain = showBulkMain && (
-    <div
-      ref={flyoutMainRef}
-      onMouseEnter={() => setShowBulkMain(true)}
-      onMouseLeave={() => setShowBulkMain(false)}
-      className="absolute right-0 mt-2 w-[420px] border rounded-xl shadow-xl p-4 z-50 bg-white border-slate-200"
-    >
-      <div className="font-semibold mb-2">Simply copy & paste all your parts</div>
-      <textarea
-        value={bulkText}
-        onChange={(e) => setBulkText(e.target.value)}
-        className="w-full h-32 border rounded-lg p-2 text-sm outline-none bg-white text-slate-900 placeholder:text-slate-400 border-slate-300"
-        placeholder="PART123, 2&#10;IGN-445, 1&#10;…"
-      />
-      <div className="mt-3 flex justify-end gap-2">
-        <button
-          className="px-3 py-2 text-sm rounded-lg border text-slate-700 border-slate-300 hover:bg-slate-50"
-          onClick={() => setShowBulkMain(false)}
-        >
-          Cancel
-        </button>
-        <button
-          className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold"
-          onClick={submitBulk}
-        >
-          Continue
-        </button>
-      </div>
-    </div>
-  );
-
-  const BulkFlyoutCompact = showBulkCompact && (
-    <div
-      ref={flyoutCompactRef}
-      onMouseEnter={() => setShowBulkCompact(true)}
-      onMouseLeave={() => setShowBulkCompact(false)}
-      className="absolute right-0 mt-2 w-[420px] border rounded-xl shadow-xl p-4 z-50 bg-white border-slate-200"
-    >
-      <div className="font-semibold mb-2">Simply copy & paste all your parts</div>
-      <textarea
-        value={bulkText}
-        onChange={(e) => setBulkText(e.target.value)}
-        className="w-full h-32 border rounded-lg p-2 text-sm outline-none bg-white text-slate-900 placeholder:text-slate-400 border-slate-300"
-        placeholder="PART123, 2&#10;IGN-445, 1&#10;…"
-      />
-      <div className="mt-3 flex justify-end gap-2">
-        <button
-          className="px-3 py-2 text-sm rounded-lg border text-slate-700 border-slate-300 hover:bg-slate-50"
-          onClick={() => setShowBulkCompact(false)}
-        >
-          Cancel
-        </button>
-        <button
-          className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold"
-          onClick={submitBulk}
-        >
-          Continue
-        </button>
-      </div>
-    </div>
-  );
-
   return (
     <>
-      {/* MAIN HEADER (scrolls away normally) */}
-      <header ref={headerRef} className="border-b bg-white border-slate-200">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="py-2">
-            <div className="flex items-center gap-6">
-              {/* Large Logo/Brand on Left */}
-              <div className="flex-shrink-0">
-                {Brand}
-              </div>
+      {/* Main Header */}
+      <header ref={headerRef} className="bg-white border-b-2 border-red-600 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between gap-6">
+            {Brand}
+            
+            <div className="hidden lg:flex items-center gap-4 flex-1 max-w-4xl">
+              <SearchBar
+                value={q}
+                onChange={setQ}
+                onSubmit={handleMainSearchSubmit}
+              />
               
-              {/* Centered Search Bar */}
-              <div className="flex-1 max-w-2xl mx-auto">
-                <SearchBar 
-                  value={q} 
-                  onChange={setQ} 
-                  onSubmit={handleMainSearchSubmit}
-                />
-              </div>
-              
-              {/* Icons on Right */}
-              <div className="flex-shrink-0 flex items-center gap-4">
-                <div className="relative">
-                  <button
-                    ref={btnMainRef}
-                    className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold shadow-sm transition-colors"
-                    onMouseEnter={() => setShowBulkMain(true)}
-                    onClick={() => setShowBulkMain((s) => !s)}
+              <Filters
+                categories={categories}
+                manufacturers={manufacturers}
+                category={category}
+                manufacturerId={manufacturerId}
+                onCategoryChange={setCategory}
+                onManufacturerChange={setManufacturerId}
+                onApply={applyFilters}
+              />
+
+              {/* Bulk Order Button */}
+              <div className="relative">
+                <button
+                  ref={btnMainRef}
+                  onClick={() => setShowBulkMain(!showBulkMain)}
+                  className="flex items-center gap-2 px-4 py-3 border-2 border-blue-600 rounded-xl text-blue-600 hover:bg-blue-50 font-semibold transition-colors"
+                >
+                  <span>Bulk Order</span>
+                </button>
+
+                {showBulkMain && (
+                  <div
+                    ref={flyoutMainRef}
+                    className="absolute right-0 top-full mt-2 w-80 bg-white border-2 border-blue-600 rounded-xl shadow-lg p-4 z-50"
                   >
-                    Bulk Order
-                  </button>
-                  {BulkFlyoutMain}
-                </div>
-                {Icons}
+                    <div className="mb-3 text-sm font-semibold text-gray-900">
+                      Paste part numbers (one per line)
+                    </div>
+                    <textarea
+                      value={bulkText}
+                      onChange={(e) => setBulkText(e.target.value)}
+                      placeholder="Part1&#10;Part2&#10;Part3"
+                      className="w-full h-32 p-3 border rounded-lg text-sm resize-none"
+                    />
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={submitBulk}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold"
+                      >
+                        Search All
+                      </button>
+                      <button
+                        onClick={() => setShowBulkMain(false)}
+                        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
+
+            {Icons}
           </div>
         </div>
       </header>
 
-      {/* COMPACT HEADER (sticky, only shows when main header is scrolled past) */}
-      <div
-        className={`fixed top-0 left-0 right-0 z-40 bg-slate-900 border-b border-slate-800 transform transition-transform duration-300 ease-in-out ${
-          showCompact ? 'translate-y-0' : '-translate-y-full'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-4 flex items-center gap-2 py-1">
-          {/* Brand Text */}
-          <button
-            onClick={goToHomepage}
-            className="group cursor-pointer"
-          >
-            <div className="font-bold text-white text-lg">Parts Partners</div>
-          </button>
+      {/* Compact Header (when scrolled) */}
+      {showCompact && (
+        <div className="fixed top-0 left-0 right-0 bg-white border-b-2 border-red-600 z-50 shadow-lg">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <button onClick={goToHomepage} className="flex items-center gap-2">
+                <img
+                  src="https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/public/assets//Logo_Rev1.png"
+                  alt="Parts Partner"
+                  className="h-8 w-8 rounded"
+                />
+                <span className="font-bold text-slate-900 hidden sm:inline">Parts Partners</span>
+              </button>
+              
+              <div className="flex-1 max-w-md">
+                <SearchBar
+                  ref={compactSearchRef}
+                  value={qCompact}
+                  onChange={setQCompact}
+                  onSubmit={handleCompactSearchSubmit}
+                />
+              </div>
 
-          {/* Condensed search */}
-          <div className="flex-1 min-w-[200px] max-w-[420px]">
-            <div className="scale-75 origin-center">
-              <SearchBar
-                ref={compactSearchRef}
-                value={qCompact}
-                onChange={setQCompact}
-                onSubmit={handleCompactSearchSubmit}
-              />
+              {/* Compact Bulk Order */}
+              <div className="relative">
+                <button
+                  ref={btnCompactRef}
+                  onClick={() => setShowBulkCompact(!showBulkCompact)}
+                  className="flex items-center gap-1 px-3 py-2 border border-blue-600 rounded-lg text-blue-600 hover:bg-blue-50 text-sm font-semibold"
+                >
+                  Bulk
+                </button>
+
+                {showBulkCompact && (
+                  <div
+                    ref={flyoutCompactRef}
+                    className="absolute right-0 top-full mt-2 w-80 bg-white border-2 border-blue-600 rounded-xl shadow-lg p-4 z-50"
+                  >
+                    <div className="mb-3 text-sm font-semibold text-gray-900">
+                      Paste part numbers (one per line)
+                    </div>
+                    <textarea
+                      value={bulkText}
+                      onChange={(e) => setBulkText(e.target.value)}
+                      placeholder="Part1&#10;Part2&#10;Part3"
+                      className="w-full h-32 p-3 border rounded-lg text-sm resize-none"
+                    />
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={submitBulk}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold"
+                      >
+                        Search All
+                      </button>
+                      <button
+                        onClick={() => setShowBulkCompact(false)}
+                        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {Icons}
             </div>
           </div>
-
-          {/* Bulk Order */}
-          <div className="relative">
-            <button
-              ref={btnCompactRef}
-              className="h-full px-4 py-1 rounded-xl border bg-white border-slate-300 text-slate-800 hover:bg-gray-50"
-              onMouseEnter={() => setShowBulkCompact(true)}
-              onClick={() => setShowBulkCompact((s) => !s)}
-            >
-              Bulk Order
-            </button>
-            {BulkFlyoutCompact}
-          </div>
-
-          {/* Icons for compact header */}
-          <div className="ml-auto flex items-center gap-2">
-            {/* Cart Button */}
-            <button
-              className="relative p-2 rounded text-white hover:bg-white/10"
-              onClick={onOpenCart}
-            >
-              <ShoppingCart />
-              {count > 0 && (
-                <span className="absolute -top-1 -right-1 text-[10px] bg-red-600 text-white rounded-full px-1">
-                  {count}
-                </span>
-              )}
-            </button>
-
-            {/* Authentication Buttons for compact header */}
-            {user ? (
-              <>
-                <button
-                  className="p-2 rounded text-white hover:bg-white/10"
-                  onClick={() => onNav('profile')}
-                  title="Profile"
-                >
-                  <User />
-                </button>
-                <button
-                  className="flex items-center gap-1 px-2 py-1 rounded text-white hover:bg-white/10 text-sm"
-                  onClick={handleLogout}
-                  title="Logout"
-                >
-                  <LogOut size={14} />
-                  Logout
-                </button>
-              </>
-            ) : (
-              <button
-                className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
-                onClick={() => onNav('login')}
-              >
-                Login
-              </button>
-            )}
-          </div>
         </div>
-      </div>
+      )}
     </>
   );
 };

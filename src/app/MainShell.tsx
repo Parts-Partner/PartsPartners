@@ -1,5 +1,5 @@
-// src/app/MainShell.tsx - Updated to use simplified search service
-import React, { useState, useEffect } from 'react';
+// src/app/MainShell.tsx - Updated with URL-based search
+import React, { useState, useEffect, useCallback } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from 'context/AuthContext';
 import { CartProvider, useCart } from 'context/CartContext';
@@ -24,16 +24,15 @@ import LoginPage from './auth/LoginPage';
 import ErrorBoundary from 'components/ErrorBoundary';
 import OrderConfirmation from 'components/OrderConfirmation';
 
-// Create React Query client with simplified settings
+// Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
       retry: (failureCount, error: any) => {
-        // Don't retry rate limited requests
         if (error?.message === 'RATE_LIMITED') return false;
-        return failureCount < 2; // Retry up to 2 times
+        return failureCount < 2;
       },
       refetchOnWindowFocus: false,
     },
@@ -52,49 +51,80 @@ const ShellInner: React.FC = () => {
   const [cartOpen, setCartOpen] = useState(false);
   const [initialBulkText, setInitialBulkText] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  
   const { profile } = useAuth();
   const { items, subtotal, add } = useCart();
 
-  // Listen for search events and navigate to search page
+  // Initialize page based on URL on first load
   useEffect(() => {
-    const handleSearchNavigation = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.q?.trim()) {
-        // Navigate to search page if not already there
-        if (page !== 'search') {
-          setPage('search');
-        }
+    setIsHydrated(true);
+    
+    // Check URL to determine initial page
+    const params = new URLSearchParams(window.location.search);
+    const hasSearchQuery = params.get('q');
+    
+    if (hasSearchQuery) {
+      setPage('search');
+    }
+  }, []);
+
+  // Handle browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const hasSearchQuery = params.get('q');
+      
+      if (hasSearchQuery) {
+        setPage('search');
+      } else {
+        setPage('home');
       }
     };
 
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // CLEAN: Search handler using URL parameters
+  const handleSearch = useCallback((query: string, category = 'all', manufacturerId = 'all') => {
+    if (!query.trim()) return;
+
+    const params = new URLSearchParams();
+    params.set('q', query.trim());
+    if (category !== 'all') params.set('category', category);
+    if (manufacturerId !== 'all') params.set('manufacturerId', manufacturerId);
     
+    // Update URL
+    const newUrl = `/search?${params.toString()}`;
+    window.history.pushState(null, '', newUrl);
+    
+    // Navigate to search page
+    setPage('search');
+    
+    console.log('🔍 Search initiated:', { query: query.trim(), category, manufacturerId });
+  }, []);
 
-    window.addEventListener('pp:search', handleSearchNavigation);
-    window.addEventListener('pp:do-search', handleSearchNavigation);
+  // Navigation helper
+  const nav = useCallback((p: string) => {
+    // Clear search params when navigating away from search
+    if (p !== 'search') {
+      window.history.pushState(null, '', '/');
+    }
+    setPage(p as any);
+  }, []);
 
-    return () => {
-      window.removeEventListener('pp:search', handleSearchNavigation);
-      window.removeEventListener('pp:do-search', handleSearchNavigation);
+  // Listen for part view requests (keep this one event for product navigation)
+  useEffect(() => {
+    const onView = (e: Event) => {
+      const { id } = (e as CustomEvent).detail || {};
+      if (!id) return;
+      setSelectedPartId(String(id));
+      setPage('product');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     };
-  }, [page]);
-
-
-    useEffect(() => {
-    setIsHydrated(true);
-    }, []);
-
-    // Listen for part view requests
-    useEffect(() => {
-      const onView = (e: Event) => {
-        const { id } = (e as CustomEvent).detail || {};
-        if (!id) return;
-        setSelectedPartId(String(id));
-        setPage('product');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      };
-      window.addEventListener('pp:viewPart' as any, onView);
-      return () => window.removeEventListener('pp:viewPart' as any, onView);
-    }, []);
+    window.addEventListener('pp:viewPart' as any, onView);
+    return () => window.removeEventListener('pp:viewPart' as any, onView);
+  }, []);
 
   // Listen for bulk order modal requests
   useEffect(() => {
@@ -117,46 +147,9 @@ const ShellInner: React.FC = () => {
     return () => window.removeEventListener('pp:openTechFinder' as any, handler);
   }, []);
 
-  // Listen for navigation requests
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const { page } = (e as CustomEvent).detail || {};
-      if (page) {
-        setPage(page);
-      }
-    };
-    window.addEventListener('pp:navigate' as any, handler);
-    return () => window.removeEventListener('pp:navigate' as any, handler);
-  }, []);
-
-  if (!isHydrated) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
-    </div>
-    );
-  }
-
-  const nav = (p: string) => setPage(p as any);
-
-  // In MainShell.tsx, add this new event listener after the existing ones:
-
-  // Handle search from HomeMinimal - transition to ProductListingPage
-  const handleHomepageSearch = (query: string) => {
-    setPage('search');
-    // Dispatch search event after state update
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('pp:do-search', { 
-        detail: { q: query, category: 'all', manufacturerId: 'all' } 
-      }));
-    }, 0);
-  };
-
   const handleBulkAddToCart = (items: any[]) => {
-    // Add each item to the cart using the cart context
     items.forEach(item => {
       if (item.id && item.quantity) {
-        // Convert the bulk order item to the format expected by the cart
         const cartItem = {
           id: item.id,
           part_number: item.part_number,
@@ -175,17 +168,25 @@ const ShellInner: React.FC = () => {
     });
   };
 
+  if (!isHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+      </div>
+    );
+  }
+
   const body = () => {
     switch (page) {
       case 'home':
-        return <HomeMinimal onNav={nav} onSearch={handleHomepageSearch} onOpenCart={() => setCartOpen(true)} />;
+        return <HomeMinimal onNav={nav} onSearch={handleSearch} onOpenCart={() => setCartOpen(true)} />;
       case 'search':
         return (
           <ErrorBoundary
             fallback={
               <div className="max-w-4xl mx-auto px-4 py-8 text-center">
                 <div className="text-red-600">Search temporarily unavailable</div>
-                <button onClick={() => setPage('home')} className="mt-4 text-blue-600 underline">
+                <button onClick={() => nav('home')} className="mt-4 text-blue-600 underline">
                   Return to homepage
                 </button>
               </div>
@@ -260,24 +261,27 @@ const ShellInner: React.FC = () => {
           </div>
         );
       default:
-        return <HomeMinimal onNav={nav} onSearch={handleHomepageSearch} onOpenCart={() => setCartOpen(true)} />;
+        return <HomeMinimal onNav={nav} onSearch={handleSearch} onOpenCart={() => setCartOpen(true)} />;
     }
   };
 
-  // Determine if we should show header/footer
   const isMinimalPage = page === 'home' || page === 'login';
   const showHeaderFooter = !isMinimalPage;
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Show Header only for non-minimal pages */}
-      {showHeaderFooter && <Header onNav={nav} onOpenCart={() => setCartOpen(true)} />}
+      {showHeaderFooter && (
+        <Header 
+          onNav={nav} 
+          onOpenCart={() => setCartOpen(true)}
+          onSearch={handleSearch} // Pass search handler to Header
+        />
+      )}
       
       <main className={`flex-1 ${showHeaderFooter ? 'bg-gradient-to-br from-slate-50 to-sky-50' : ''}`}>
         {body()}
       </main>
       
-      {/* Show Footer only for non-minimal pages */}
       {showHeaderFooter && <Footer onNav={nav} />}
 
       {/* Modals */}
@@ -318,7 +322,6 @@ const MainShell: React.FC = () => (
     onError={(error, errorInfo) => {
       console.error('Application-level error:', error);
       
-      // Send to error monitoring service
       if (typeof window !== 'undefined' && (window as any).Sentry) {
         (window as any).Sentry.captureException(error, {
           contexts: {
