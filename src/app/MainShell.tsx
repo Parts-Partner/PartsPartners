@@ -115,6 +115,29 @@ const ShellInner: React.FC = () => {
 
   const nav = (p: string) => setPage(p as any);
 
+  // In MainShell.tsx, add this new event listener after the existing ones:
+
+  // Listen for search events and navigate to search page
+  useEffect(() => {
+    const handleSearchNavigation = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.q?.trim()) {
+        // Navigate to search page if not already there
+        if (page !== 'search') {
+          setPage('search');
+        }
+      }
+    };
+
+    window.addEventListener('pp:search', handleSearchNavigation);
+    window.addEventListener('pp:do-search', handleSearchNavigation);
+
+    return () => {
+      window.removeEventListener('pp:search', handleSearchNavigation);
+      window.removeEventListener('pp:do-search', handleSearchNavigation);
+    };
+  }, [page]);
+
   // Handle search from HomeMinimal - transition to ProductListingPage
   const handleHomepageSearch = (query: string) => {
     setPage('search');
