@@ -75,7 +75,11 @@ exports.handler = async (event) => {
       }
     });
 
-    const facets = Array.from(facetMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    const facets = Array.from(facetMap.values()).sort((a, b) => {
+      const nameA = a.name || '';
+      const nameB = b.name || '';
+      return nameA.localeCompare(nameB);
+    })
 
     return {
       statusCode: 200,

@@ -30,56 +30,19 @@ export const PartsList: React.FC<PartsListProps> = ({
   }, []);
 
   // ULTRA-SAFE HELPER FUNCTIONS
-const getManufacturerName = (manufacturer: any): string => {
-  try {
-    // Handle null/undefined
-    if (!manufacturer) return '';
-    
-    // Handle string
-    if (typeof manufacturer === 'string') {
-      return manufacturer.trim();
-    }
-    
-    // Handle object - try all possible property names
-    if (typeof manufacturer === 'object') {
-      // Common property names for manufacturer
-      const possibleKeys = [
-        'manufacturer', 'manufacturer_name', 'name', 
-        'brand', 'company', 'vendor', 'make'
-      ];
-      
-      for (const key of possibleKeys) {
-        if (manufacturer[key] && typeof manufacturer[key] === 'string') {
-          return manufacturer[key].trim();
-        }
-      }
-      
-      // If object has no recognizable manufacturer property, try first string value
-      for (const [key, value] of Object.entries(manufacturer)) {
-        if (typeof value === 'string' && value.trim()) {
-          return value.trim();
-        }
-      }
-    }
-    
-    return '';
-  } catch (error) {
-    console.error('Error getting manufacturer name:', error);
-    return '';
+const getManufacturerName = (part: any): string => {
+  if (part.manufacturer_name && typeof part.manufacturer_name === 'string') {
+    return part.manufacturer_name.trim();
   }
+  return '';
 };
 
-  const getMake = (manufacturer: any): string => {
-    try {
-      if (!manufacturer || typeof manufacturer !== 'object') return '';
-      if (manufacturer.make && typeof manufacturer.make === 'string') {
-        return manufacturer.make.trim();
-      }
-      return '';
-    } catch (error) {
-      console.error('Error getting make:', error, manufacturer);
-      return '';
+  const getMake = (part: any): string => {
+    // Based on your RPC response, the field is "make" 
+    if (part.make && typeof part.make === 'string') {
+      return part.make.trim();
     }
+    return '';
   };
 
   // ULTRA-SAFE PART RENDERER
@@ -100,8 +63,8 @@ const getManufacturerName = (manufacturer: any): string => {
       const discounted = unit * (1 - (Number(discountPct) || 0) / 100);
       const qty = getQty(partId);
 
-      const manufacturerName = getManufacturerName(p.manufacturer);
-      const make = getMake(p.manufacturer);
+      const manufacturerName = getManufacturerName(p);
+      const make = getMake(p);
 
       return (
         <div key={partId} className="bg-white border rounded-xl p-4 shadow-sm hover:shadow cursor-pointer">

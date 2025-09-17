@@ -59,6 +59,14 @@ export async function searchPartsWithFacets(
     console.log('🔍 SearchService: Data length:', result.data?.length);
     console.log('🔍 SearchService: Facets length:', result.facets?.length);
     
+    // ADD THESE DEBUG LINES HERE:
+    if (result.data && result.data.length > 0) {
+      console.log('🔍 First result keys:', Object.keys(result.data[0]));
+      console.log('🔍 First result manufacturer field:', result.data[0].manufacturer_name);
+      console.log('🔍 First result make field:', result.data[0].make);
+      console.log('🔍 First result full object:', result.data[0]);
+    }
+
     const formattedResult = {
       data: result.data || [],
       facets: result.facets || [],
