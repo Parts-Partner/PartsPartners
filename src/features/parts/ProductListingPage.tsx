@@ -153,12 +153,13 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
     
     let filtered = [...searchResponse.data];
     
-    // Apply sidebar filter
+    // Apply sidebar filter - NOW INCLUDES MANUFACTURER NAMES
     if (sidebarFilter.trim()) {
       const filterTerm = sidebarFilter.toLowerCase().trim();
       filtered = filtered.filter(part => 
         part.part_number?.toLowerCase().includes(filterTerm) ||
-        part.part_description?.toLowerCase().includes(filterTerm)
+        part.part_description?.toLowerCase().includes(filterTerm) ||
+        part.manufacturer_name?.toLowerCase().includes(filterTerm) // FIXED: Added manufacturer filtering
       );
     }
     
