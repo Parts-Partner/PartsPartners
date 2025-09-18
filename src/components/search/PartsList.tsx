@@ -1,15 +1,30 @@
-// src/components/search/PartsList.tsx - MAXIMUM SAFETY VERSION
+// src/components/search/PartsList.tsx - Corrected version
 import React, { useState, useEffect } from 'react';
-import type { Part } from 'services/partsService';
+import { ShoppingCart, Eye } from 'lucide-react';
+
+interface Part {
+  id: string;
+  part_number: string;
+  part_description: string;
+  category: string;
+  list_price: string | number;
+  compatible_models: string[];
+  image_url?: string;
+  in_stock: boolean;
+  manufacturer_id: string;
+  make_part_number?: string;
+  manufacturer_name: string;
+  make: string;
+}
 
 interface PartsListProps {
   parts: Part[];
   loading: boolean;
   discountPct: number;
-  onAdd: (p: Part, qty?: number) => Promise<void>;
+  onAdd: (part: Part, qty?: number) => Promise<void>;
   onUpdateQty: (id: string, qty: number) => Promise<void>;
   getQty: (id: string) => number;
-  onView?: (p: Part) => void;
+  onView?: (part: Part) => void;
 }
 
 export const PartsList: React.FC<PartsListProps> = ({
@@ -25,168 +40,195 @@ export const PartsList: React.FC<PartsListProps> = ({
 
   useEffect(() => {
     setIsClient(true);
-    // DEBUG: Confirm we're using the fixed version
-    console.log('🛠️ PartsList: Using FIXED version with safe manufacturer rendering');
   }, []);
 
-  // ULTRA-SAFE HELPER FUNCTIONS
-const getManufacturerName = (part: any): string => {
-  if (part.manufacturer_name && typeof part.manufacturer_name === 'string') {
-    return part.manufacturer_name.trim();
+  if (loading || !isClient) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+      </div>
+    );
   }
-  return '';
-};
 
-  const getMake = (part: any): string => {
-    // Based on your RPC response, the field is "make" 
-    if (part.make && typeof part.make === 'string') {
-      return part.make.trim();
-    }
-    return '';
-  };
+  if (!parts || parts.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-gray-500">No parts found</div>
+      </div>
+    );
+  }
 
-  // ULTRA-SAFE PART RENDERER
-  const renderPart = (p: any, index: number) => {
+  const handleAddToCart = async (part: Part, qty: number = 1) => {
     try {
-      // DEBUG: Log problematic parts
-      if (typeof p.manufacturer === 'object') {
-        console.log(`🐛 Part ${index} has object manufacturer:`, p.manufacturer);
-      }
-
-      const partId = String(p.id || `part-${index}`);
-      const partNumber = String(p.part_number || 'Unknown Part');
-      const partDescription = String(p.part_description || 'No description');
-      
-      const unit = typeof p.list_price === 'string' 
-        ? parseFloat(p.list_price) || 0
-        : Number(p.list_price) || 0;
-      const discounted = unit * (1 - (Number(discountPct) || 0) / 100);
-      const qty = getQty(partId);
-
-      const manufacturerName = getManufacturerName(p);
-      const make = getMake(p);
-
-      return (
-        <div key={partId} className="bg-white border rounded-xl p-4 shadow-sm hover:shadow cursor-pointer">
-          <button
-            type="button"
-            className="text-left w-full"
-            onClick={() => {
-              if (onView) {
-                onView(p);
-              } else {
-                window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: partId } }));
-              }
-            }}
-            aria-label={`View ${partNumber}`}
-          >
-            {/* ULTRA-SAFE MANUFACTURER DISPLAY */}
-            <div className="text-xs text-gray-500">
-              {manufacturerName}
-              {make && ` • ${make}`}
-            </div>
-            
-            <div className="font-semibold text-lg underline decoration-transparent hover:decoration-slate-300">
-              {partNumber}
-            </div>
-            
-            <div className="text-sm text-gray-700 line-clamp-2">
-              {partDescription}
-            </div>
-          </button>
-
-          {/* Pricing */}
-          <div className="mt-2 flex items-center justify-between">
-            <div>
-              <div className="text-xs text-gray-500">List</div>
-              <div className="font-medium">${unit.toFixed(2)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500">Your price</div>
-              <div className="font-bold text-green-700">${discounted.toFixed(2)}</div>
-            </div>
-          </div>
-
-          {/* Cart controls */}
-          <div className="mt-3 flex items-center justify-between">
-            {qty > 0 ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onUpdateQty(partId, Math.max(0, qty - 1))}
-                  className="w-8 h-8 flex items-center justify-center border rounded text-gray-600 hover:bg-gray-50"
-                >
-                  -
-                </button>
-                <span className="w-8 text-center text-sm font-medium">{qty}</span>
-                <button
-                  onClick={() => onUpdateQty(partId, qty + 1)}
-                  className="w-8 h-8 flex items-center justify-center border rounded text-gray-600 hover:bg-gray-50"
-                >
-                  +
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => onAdd(p, 1)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold"
-              >
-                Add to Cart
-              </button>
-            )}
-
-            <div className="text-xs text-gray-500">
-              {p.in_stock ? (
-                <span className="text-green-600">✓ In Stock</span>
-              ) : (
-                <span className="text-red-600">Out of Stock</span>
-              )}
-            </div>
-          </div>
-        </div>
-      );
+      await onAdd(part, qty);
     } catch (error) {
-      console.error(`Error rendering part ${index}:`, error, p);
-      return (
-        <div key={`error-${index}`} className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <div className="text-red-700">Error rendering part</div>
-        </div>
-      );
+      console.error('Error adding to cart:', error);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-      </div>
-    );
-  }
+  const handleUpdateQty = async (partId: string, newQty: number) => {
+    try {
+      await onUpdateQty(partId, newQty);
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+    }
+  };
 
-  if (!isClient) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600" />
-      </div>
-    );
-  }
+  const handleViewPart = (part: Part) => {
+    if (onView) {
+      onView(part);
+    } else {
+      // Dispatch the custom event that MainShell listens for
+      window.dispatchEvent(new CustomEvent('pp:viewPart', { 
+        detail: { id: part.id } 
+      }));
+    }
+  };
 
-  // ULTRA-SAFE PARTS RENDERING
-  try {
-    const safeParts = Array.isArray(parts) ? parts : [];
-    console.log(`🔍 PartsList: Rendering ${safeParts.length} parts`);
-    
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {safeParts.map((part, index) => renderPart(part, index))}
-      </div>
-    );
-  } catch (error) {
-    console.error('Critical error in PartsList:', error);
-    return (
-      <div className="text-center py-8">
-        <div className="text-red-600">Unable to display parts</div>
-        <div className="text-sm text-gray-500 mt-2">Check console for details</div>
-      </div>
-    );
-  }
+  return (
+    <div className="space-y-4">
+      {parts.map((part) => {
+        const currentQty = getQty(part.id);
+        const unitPrice = typeof part.list_price === 'string' 
+          ? parseFloat(part.list_price) || 0 
+          : Number(part.list_price) || 0;
+        const discountedPrice = unitPrice * (1 - (discountPct || 0) / 100);
+        const hasDiscount = discountPct > 0;
+
+        // Format manufacturer display
+        const manufacturerDisplay = part.manufacturer_name && part.make && part.manufacturer_name !== part.make
+          ? `${part.manufacturer_name} • ${part.make}`
+          : part.manufacturer_name || part.make || 'Unknown';
+
+        return (
+          <div
+            key={part.id}
+            className="bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors p-6"
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                {/* Part Number & Manufacturer */}
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900 truncate">
+                    {part.part_number}
+                  </h3>
+                  <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
+                    {manufacturerDisplay}
+                  </span>
+                  {!part.in_stock && (
+                    <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded">
+                      Out of Stock
+                    </span>
+                  )}
+                </div>
+
+                {/* Description */}
+                <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                  {part.part_description}
+                </p>
+
+                {/* Compatible Models */}
+                {part.compatible_models && part.compatible_models.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1">Compatible Models:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {part.compatible_models.slice(0, 3).map((model, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded"
+                        >
+                          {model}
+                        </span>
+                      ))}
+                      {part.compatible_models.length > 3 && (
+                        <span className="px-2 py-1 text-xs bg-gray-50 text-gray-500 rounded">
+                          +{part.compatible_models.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Make Part Number */}
+                {part.make_part_number && (
+                  <p className="text-xs text-gray-500">
+                    Mfg Part #: {part.make_part_number}
+                  </p>
+                )}
+              </div>
+
+              {/* Right side - Price and Actions */}
+              <div className="ml-6 flex flex-col items-end gap-3">
+                {/* Price */}
+                <div className="text-right">
+                  {hasDiscount ? (
+                    <>
+                      <div className="text-sm text-gray-500 line-through">
+                        ${unitPrice.toFixed(2)}
+                      </div>
+                      <div className="text-xl font-bold text-red-600">
+                        ${discountedPrice.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-green-600 font-medium">
+                        {discountPct}% off
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xl font-bold text-gray-900">
+                      ${unitPrice.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleViewPart(part)}
+                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="View Details"
+                  >
+                    <Eye size={20} />
+                  </button>
+
+                  {/* Quantity Controls */}
+                  {currentQty > 0 ? (
+                    <div className="flex items-center gap-2 bg-red-50 rounded-lg p-1">
+                      <button
+                        onClick={() => handleUpdateQty(part.id, Math.max(0, currentQty - 1))}
+                        className="w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-100 rounded"
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center font-semibold text-red-600">
+                        {currentQty}
+                      </span>
+                      <button
+                        onClick={() => handleUpdateQty(part.id, currentQty + 1)}
+                        className="w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-100 rounded"
+                      >
+                        +
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleAddToCart(part, 1)}
+                      disabled={!part.in_stock}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors ${
+                        part.in_stock
+                          ? 'bg-red-600 hover:bg-red-700 text-white'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      <ShoppingCart size={16} />
+                      Add to Cart
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 };
