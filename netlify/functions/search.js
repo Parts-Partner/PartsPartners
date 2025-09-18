@@ -1,5 +1,4 @@
-// netlify/functions/search.js - Enhanced with manufacturer + part combinations
-// IMPORTANT: This preserves all existing functionality while adding new features
+// netlify/functions/search.js - Fixed facet generation with proper manufacturer IDs
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
@@ -131,7 +130,6 @@ exports.handler = async (event, context) => {
         .limit(1);
       
       if (mfgError) {
-        // Fall back to standard search if manufacturer lookup fails
         console.warn('Manufacturer lookup failed, falling back to standard search');
         const { data, error } = await supabase.rpc('search_parts_with_manufacturers', {
           search_query: parsedQuery.originalQuery,
@@ -150,7 +148,6 @@ exports.handler = async (event, context) => {
         searchData = data;
         searchError = error;
       } else {
-        // Manufacturer not found, fall back to standard search
         console.warn(`Manufacturer '${parsedQuery.manufacturer}' not found, falling back to standard search`);
         const { data, error } = await supabase.rpc('search_parts_with_manufacturers', {
           search_query: parsedQuery.originalQuery,
@@ -161,7 +158,7 @@ exports.handler = async (event, context) => {
         searchError = error;
       }
     } else {
-      // Standard search (existing functionality - UNCHANGED)
+      // Standard search (existing functionality)
       const { data, error } = await supabase.rpc('search_parts_with_manufacturers', {
         search_query: parsedQuery.searchTerm,
         category_filter: category === 'all' || !category ? null : category,
@@ -186,7 +183,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Transform the data (UNCHANGED - preserves existing working logic)
+    // Transform the data
     const transformedData = (searchData || []).map(item => ({
       id: item.id || 'unknown',
       part_number: item.part_number || 'N/A',
@@ -205,7 +202,7 @@ exports.handler = async (event, context) => {
       make: item.make || ''
     }));
 
-    // Safe sorting (UNCHANGED - preserves existing working logic)
+    // Safe sorting
     const sortedData = transformedData.sort((a, b) => {
       const nameA = a.part_number || '';
       const nameB = b.part_number || '';
@@ -217,24 +214,36 @@ exports.handler = async (event, context) => {
     // Limit results
     const limitedData = sortedData.slice(0, limit);
 
-    // Generate facets (UNCHANGED - preserves existing working logic)
+    // FIXED: Generate facets with manufacturer UUIDs as IDs, not names
     const facets = [];
-    const manufacturerCounts = {};
+    const manufacturerMap = new Map(); // Use Map to group by manufacturer_id
     
     limitedData.forEach(item => {
+      const mfgId = item.manufacturer_id;
       const mfgName = item.manufacturer_name || 'Unknown';
-      manufacturerCounts[mfgName] = (manufacturerCounts[mfgName] || 0) + 1;
+      
+      if (mfgId && mfgName !== 'Unknown') {
+        if (manufacturerMap.has(mfgId)) {
+          manufacturerMap.set(mfgId, {
+            ...manufacturerMap.get(mfgId),
+            count: manufacturerMap.get(mfgId).count + 1
+          });
+        } else {
+          manufacturerMap.set(mfgId, {
+            id: mfgId,      // Use manufacturer UUID as ID
+            name: mfgName,  // Display name
+            count: 1
+          });
+        }
+      }
     });
 
-    Object.entries(manufacturerCounts)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 20)
-      .forEach(([name, count]) => {
-        facets.push({
-          id: name.toLowerCase().replace(/\s+/g, '-'),
-          name: name,
-          count: count
-        });
+    // Convert Map to array and sort
+    Array.from(manufacturerMap.values())
+      .sort((a, b) => b.count - a.count) // Sort by count descending
+      .slice(0, 20) // Limit to top 20 manufacturers
+      .forEach(mfg => {
+        facets.push(mfg);
       });
 
     const response = {
