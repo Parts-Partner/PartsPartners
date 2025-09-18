@@ -6,8 +6,8 @@ import { listCategories, listManufacturers } from 'services/partsService';
 import { useCart } from 'context/CartContext';
 import { useAuth, type UserProfile } from 'context/AuthContext';
 import { PartsList } from 'components/search/PartsList';
+import { SearchSidebar } from 'components/search/SearchSidebar';
 import { NoResults } from 'components/search/NoResults';
-import HomePromos from 'components/home/HomePromos';
 import { X } from 'lucide-react';
 
 interface ProductListingPageProps {
@@ -263,29 +263,115 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
     );
   }
 
-  return (
-    <div className="min-h-screen"> {/* Changed from flex h-screen */}
-      <div className="max-w-6xl mx-auto px-6 py-6"> {/* Removed nested div structure */}
-        {/* All your existing content goes here - search header, filters, results, etc. */}
-        
+return (
+  <div className="flex min-h-screen">
+    {/* SIDEBAR */}
+    <SearchSidebar
+      searchQuery={sidebarFilter}
+      onSearchChange={setSidebarFilter}
+      onSearchSubmit={(query: string) => setSidebarFilter(query)}
+      manufacturerFacets={searchResponse?.facets || []}
+      selectedManufacturerId={manufacturerId === 'all' ? null : manufacturerId}
+      onManufacturerSelect={handleManufacturerSelect}
+      totalResults={totalResults}
+    />
+
+    {/* MAIN CONTENT */}
+    <div className="flex-1">
+      <div className="max-w-6xl mx-auto px-6 py-6">
         {/* Search Results Header */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
-          {/* ... existing header content ... */}
+          <div className="text-sm text-gray-500">
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                Searching...
+              </span>
+            ) : isRateLimited ? (
+              <span className="text-red-600">Search rate limited - please slow down</span>
+            ) : error ? (
+              <span className="text-red-600">Search failed - please try again</span>
+            ) : (
+              <>
+                Showing <span className="font-semibold text-gray-900">{totalResults.toLocaleString()}</span> results for
+              </>
+            )}
+          </div>
+          
+          {!isLoading && !error && (
+            <div className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700 text-sm font-semibold">
+              &quot;{query}&quot;
+            </div>
+          )}
         </div>
 
         {/* Active Filters */}
         {activeFilters.length > 0 && (
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            {/* ... existing filters ... */}
+            <span className="text-sm text-gray-600">Active filters:</span>
+            {activeFilters.map((filter, index) => (
+              <button
+                key={index}
+                onClick={filter.clear}
+                className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-800 text-sm rounded-full hover:bg-red-200 transition-colors"
+              >
+                {filter.label}
+                <X size={14} />
+              </button>
+            ))}
           </div>
         )}
 
-        {/* Sort and Page Size Controls */}
-        {totalResults > 0 && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-            {/* ... existing controls ... */}
+        {/* Sorting and pagination controls */}
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as any)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+            >
+              <option value="relevance">Sort by Relevance</option>
+              <option value="price_asc">Price: Low to High</option>
+              <option value="price_desc">Price: High to Low</option>
+              <option value="in_stock">In Stock First</option>
+            </select>
+
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+            >
+              <option value={12}>12 per page</option>
+              <option value={24}>24 per page</option>
+              <option value={48}>48 per page</option>
+            </select>
           </div>
-        )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
+              >
+                Previous
+              </button>
+              
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </span>
+              
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Results */}
         {isLoading ? (
@@ -295,38 +381,32 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
         ) : error ? (
           <div className="text-center py-12">
             <div className="text-red-600 mb-4">Search failed. Please try again.</div>
-            <button 
-              onClick={() => refetch()} 
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-            >
-              Retry Search
-            </button>
           </div>
         ) : totalResults === 0 ? (
           <NoResults onReset={resetToHomepage} />
         ) : (
           <>
-            <PartsList
-              parts={currentResults}
-              loading={false}
-              discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
-              onAdd={add}
-              onUpdateQty={updateQty}
-              getQty={getCartQuantity}
-              onView={(part) => {
-                window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
-              }}
-            />
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="mt-8 flex justify-center items-center gap-2">
-                {/* ... existing pagination ... */}
+            {/* Parts List */}
+            {!isMounted ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
               </div>
+            ) : (
+              <PartsList
+                parts={currentResults}
+                loading={false}
+                discountPct={(profile as UserProfile | null)?.discount_percentage || 0}
+                onAdd={add}
+                onUpdateQty={updateQty}
+                getQty={getCartQuantity}
+                onView={(part) => {
+                  window.dispatchEvent(new CustomEvent('pp:viewPart', { detail: { id: part.id } }));
+                }}
+              />
             )}
           </>
         )}
       </div>
     </div>
-  );
-};
+  </div>
+)};
