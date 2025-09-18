@@ -58,7 +58,7 @@ export const PartsList: React.FC<PartsListProps> = ({
     );
   }
 
-  const handleAddToCart = async (part: Part, qty: number = 1) => {
+  const handleAddToCart = async (part: Part, qty = 1) => {
     try {
       await onAdd(part, qty);
     } catch (error) {
