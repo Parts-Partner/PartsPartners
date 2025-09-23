@@ -3,9 +3,23 @@ import { supabase } from 'services/supabaseClient';
 
 export interface Manufacturer { id: string; make: string; manufacturer: string }
 export interface Part {
-  id: string; part_number: string; part_description: string; category: string; list_price: string | number;
-  compatible_models: string[] | string; image_url?: string; in_stock: boolean; created_at?: string; updated_at?: string;
-  manufacturer_id: string; make_part_number?: string; manufacturer?: Manufacturer; search_rank?: number;
+  id: string; 
+  part_number: string; 
+  part_description: string; 
+  category: string; 
+  list_price: string | number;
+  compatible_models: string[] | string; 
+  image_url?: string; 
+  in_stock: boolean; 
+  created_at?: string; 
+  updated_at?: string;
+  manufacturer_id: string; 
+  make_part_number?: string; 
+  manufacturer?: Manufacturer; 
+  search_rank?: number;
+  // Add these flat fields that your RPC actually returns:
+  manufacturer_name?: string;
+  make?: string;
 }
 
 // Error types for better error handling

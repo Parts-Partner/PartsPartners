@@ -21,18 +21,41 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
     [items, partId]
   );
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
+useEffect(() => {
+  (async () => {
+    setLoading(true);
+    try {
       const { data, error } = await supabase
         .from('parts')
-        .select(`*, manufacturer:manufacturer_id ( id, manufacturer, make )`)
+        .select(`
+          *,
+          manufacturers!inner(manufacturer, make)
+        `)
         .eq('id', partId)
         .single();
-      if (!error) setProduct(data as unknown as Part);
-      setLoading(false);
-    })();
-  }, [partId]);
+
+      if (error) {
+        console.error('Error fetching part:', error);
+        setLoading(false);
+        return;
+      }
+
+      if (data) {
+        // Flatten the data to match expected structure
+        const flattenedPart = {
+          ...data,
+          manufacturer_name: data.manufacturers?.manufacturer,
+          make: data.manufacturers?.make
+        };
+        setProduct(flattenedPart);
+      }
+
+    } catch (error) {
+      console.error('Error fetching part:', error);
+    }
+    setLoading(false);
+  })();
+}, [partId]);
 
   const unit = useMemo(() => {
     if (!product) return 0;
@@ -93,9 +116,9 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
         <div className="bg-white border rounded-2xl p-6 space-y-4">
           <div>
             <div className="text-xs text-gray-500">
-              {product.manufacturer?.manufacturer}
-              {product.manufacturer?.make
-                ? ` • ${product.manufacturer.make}`
+              {product.manufacturer_name}
+              {product.make && product.make !== product.manufacturer_name
+                ? ` • ${product.make}`
                 : ''}
             </div>
             <h1 className="text-2xl font-extrabold tracking-tight">
