@@ -37,6 +37,8 @@ useEffect(() => {
       });
 
       console.log('PDP: RPC Query result:', { allData, error });
+      console.log('PDP: All data length:', allData?.length);
+      console.log('PDP: Looking for partId:', partId);
 
       if (error) {
         console.error('Error fetching part:', error);
