@@ -26,48 +26,36 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
   );
 
 useEffect(() => {
-  console.log('PDP: useEffect triggered with partId:', partId);
-  
   const fetchPart = async () => {
     setLoading(true);
-    
     try {
-      console.log('PDP: Starting direct query...');
-      
-      // Direct query for the specific part
       const { data, error } = await supabase
         .from('parts')
-        .select('*')
+        .select(`
+          *,
+          manufacturers(id, manufacturer, make)
+        `)
         .eq('id', partId)
         .single();
-      
-      console.log('PDP: Direct query completed. Data:', data, 'Error:', error);
-      
-      if (error) {
-        console.error('PDP: Query error:', error);
-        return;
-      }
-      
-      if (data) {
-        // Add manufacturer info separately if needed
-        const partWithMfg = {
+
+      if (!error && data) {
+        // Flatten manufacturer data to match PartsList structure
+        const part = {
           ...data,
-          manufacturer_name: 'Loading...', // We'll add this properly later
-          make: 'Loading...'
+          manufacturer_name: data.manufacturers?.manufacturer || '',
+          make: data.manufacturers?.make || ''
         };
-        
-        console.log('PDP: Setting product:', partWithMfg);
-        setProduct(partWithMfg);
+        setProduct(part);
       }
-      
-    } catch (err) {
-      console.error('PDP: Catch error:', err);
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching part:', error);
     }
+    setLoading(false);
   };
-  
-  fetchPart();
+
+  if (partId) {
+    fetchPart();
+  }
 }, [partId]);
 
   const unit = useMemo(() => {
