@@ -29,16 +29,14 @@ useEffect(() => {
   (async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('parts')
-        .select(`
-          *,
-          manufacturers(manufacturer, make)
-        `)
-        .eq('id', partId)
-        .single();
+      // Use the exact same RPC that works in search
+      const { data: allData, error } = await supabase.rpc('search_parts_with_manufacturers', {
+        search_query: '',
+        category_filter: null, 
+        manufacturer_filter: null
+      });
 
-        console.log('PDP: Query result:', { data, error });
+      console.log('PDP: RPC Query result:', { allData, error });
 
       if (error) {
         console.error('Error fetching part:', error);
@@ -46,18 +44,12 @@ useEffect(() => {
         return;
       }
 
-      if (data) {
-        // Flatten the data to match expected structure
-        const flattenedPart = {
-          ...data,
-          manufacturer_name: data.manufacturers?.manufacturer,
-          make: data.manufacturers?.make
-        };
-
-        console.log('PDP: Query result:', { data, error });
-        console.log('PDP: Flattened part:', flattenedPart);
-
-        setProduct(flattenedPart);
+      // Find the specific part
+      const part = allData?.find((p: any) => p.id === partId);
+      console.log('PDP: Found part:', part);
+      
+      if (part) {
+        setProduct(part);
       }
 
     } catch (error) {
