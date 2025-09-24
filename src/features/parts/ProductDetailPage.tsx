@@ -33,10 +33,12 @@ useEffect(() => {
         .from('parts')
         .select(`
           *,
-          manufacturers!inner(manufacturer, make)
+          manufacturers(manufacturer, make)
         `)
         .eq('id', partId)
         .single();
+
+        console.log('PDP: Query result:', { data, error });
 
       if (error) {
         console.error('Error fetching part:', error);
