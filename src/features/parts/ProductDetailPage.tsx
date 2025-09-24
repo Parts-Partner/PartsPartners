@@ -11,9 +11,13 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
   const { add, updateQty, items } = useCart();
   const { profile } = useAuth();
 
+  console.log('PDP: Received partId:', partId);
+
   const [product, setProduct] = useState<Part | null>(null);
   const [loading, setLoading] = useState(true);
   const [qty, setQty] = useState(1);
+
+  console.log('PDP: Current product state:', product);
 
   const discountPct = (profile as UserProfile | null)?.discount_percentage || 0;
   const inCartQty = useMemo(
@@ -47,6 +51,10 @@ useEffect(() => {
           manufacturer_name: data.manufacturers?.manufacturer,
           make: data.manufacturers?.make
         };
+
+        console.log('PDP: Query result:', { data, error });
+        console.log('PDP: Flattened part:', flattenedPart);
+
         setProduct(flattenedPart);
       }
 
@@ -164,14 +172,20 @@ useEffect(() => {
             />
             {inCartQty > 0 ? (
               <button
-                onClick={() => updateQty(product.id, inCartQty + qty)}
+                  onClick={() => {
+                    console.log('PDP: Update cart clicked with:', { product, inCartQty, qty }); // ADD THIS
+                    updateQty(product.id, inCartQty + qty);
+                  }}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-lg py-3 font-semibold inline-flex items-center justify-center gap-2"
               >
                 <ShoppingCart size={18} /> Update Cart ({inCartQty})
               </button>
             ) : (
               <button
-                onClick={() => add(product, qty)}
+                onClick={() => {
+                  console.log('PDP: Add to cart clicked with:', { product, qty }); // ADD THIS
+                  add(product, qty);
+                }}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-lg py-3 font-semibold inline-flex items-center justify-center gap-2"
               >
                 <ShoppingCart size={18} /> Add to Cart
