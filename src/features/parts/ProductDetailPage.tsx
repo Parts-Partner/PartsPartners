@@ -26,39 +26,44 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
   );
 
 useEffect(() => {
-  (async () => {
+  console.log('PDP: useEffect triggered with partId:', partId);
+  
+  const fetchPart = async () => {
     setLoading(true);
+    
     try {
-      // Use the exact same RPC that works in search
+      console.log('PDP: Starting RPC call...');
+      
       const { data: allData, error } = await supabase.rpc('search_parts_with_manufacturers', {
         search_query: '',
-        category_filter: null, 
+        category_filter: null,
         manufacturer_filter: null
       });
-
-      console.log('PDP: RPC Query result:', { allData, error });
-      console.log('PDP: All data length:', allData?.length);
-      console.log('PDP: Looking for partId:', partId);
-
+      
+      console.log('PDP: RPC completed. Data length:', allData?.length, 'Error:', error);
+      
       if (error) {
-        console.error('Error fetching part:', error);
-        setLoading(false);
+        console.error('PDP: RPC error:', error);
         return;
       }
-
-      // Find the specific part
+      
       const part = allData?.find((p: any) => p.id === partId);
       console.log('PDP: Found part:', part);
       
       if (part) {
         setProduct(part);
+      } else {
+        console.log('PDP: Part not found in results');
       }
-
-    } catch (error) {
-      console.error('Error fetching part:', error);
+      
+    } catch (err) {
+      console.error('PDP: Catch error:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  })();
+  };
+  
+  fetchPart();
 }, [partId]);
 
   const unit = useMemo(() => {
