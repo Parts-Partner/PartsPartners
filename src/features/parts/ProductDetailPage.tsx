@@ -32,28 +32,32 @@ useEffect(() => {
     setLoading(true);
     
     try {
-      console.log('PDP: Starting RPC call...');
+      console.log('PDP: Starting direct query...');
       
-      const { data: allData, error } = await supabase.rpc('search_parts_with_manufacturers', {
-        search_query: '',
-        category_filter: null,
-        manufacturer_filter: null
-      });
+      // Direct query for the specific part
+      const { data, error } = await supabase
+        .from('parts')
+        .select('*')
+        .eq('id', partId)
+        .single();
       
-      console.log('PDP: RPC completed. Data length:', allData?.length, 'Error:', error);
+      console.log('PDP: Direct query completed. Data:', data, 'Error:', error);
       
       if (error) {
-        console.error('PDP: RPC error:', error);
+        console.error('PDP: Query error:', error);
         return;
       }
       
-      const part = allData?.find((p: any) => p.id === partId);
-      console.log('PDP: Found part:', part);
-      
-      if (part) {
-        setProduct(part);
-      } else {
-        console.log('PDP: Part not found in results');
+      if (data) {
+        // Add manufacturer info separately if needed
+        const partWithMfg = {
+          ...data,
+          manufacturer_name: 'Loading...', // We'll add this properly later
+          make: 'Loading...'
+        };
+        
+        console.log('PDP: Setting product:', partWithMfg);
+        setProduct(partWithMfg);
       }
       
     } catch (err) {
