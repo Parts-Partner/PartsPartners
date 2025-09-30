@@ -39,17 +39,40 @@ useEffect(() => {
     let mounted = true;
 
     const fetchPart = async () => {
-      console.log('🔍 ProductDetailPage: Fetching part with ID:', partId);
+      // Normalize the UUID (trim whitespace, convert to lowercase)
+      const normalizedPartId = partId?.trim().toLowerCase();
+      
+      console.log('🔍 ProductDetailPage: Fetching part with ID:', normalizedPartId);
+      console.log('🔍 ProductDetailPage: Original partId:', partId);
+      
       setLoading(true);
+      
       try {
-        // First, get the part
-        const { data: partData, error: partError } = await supabase
+        // First try: Direct query with normalized ID
+        let { data: partData, error: partError } = await supabase
           .from('parts')
           .select('*')
-          .eq('id', partId)
-          .single();
+          .eq('id', normalizedPartId)
+          .maybeSingle();
 
-        console.log('📦 ProductDetailPage: Part data:', { partData, partError });
+        console.log('📦 ProductDetailPage: First attempt result:', { partData, partError });
+
+        // Second try: If no result, try with ilike for case-insensitive matching
+        if (!partData && !partError) {
+          console.log('🔄 ProductDetailPage: Trying case-insensitive search...');
+          const result = await supabase
+            .from('parts')
+            .select('*')
+            .ilike('id', normalizedPartId)
+            .limit(1)
+            .single();
+          
+          partData = result.data;
+          partError = result.error;
+          console.log('📦 ProductDetailPage: Second attempt result:', { partData, partError });
+        }
+
+        console.log('📦 ProductDetailPage: Final part data:', { partData, partError });
 
         if (partError) {
           console.error('❌ ProductDetailPage: Part fetch error:', partError);
