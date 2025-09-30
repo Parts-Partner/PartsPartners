@@ -39,24 +39,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
 
-  const add = async (part: Part, qty = 1) => {
+  const add = async (part: Part, qty = 1): Promise<void> => {
+    console.log('🛒 CartContext: add() called', { partId: part.id, qty, hasUser: !!user?.id });
+    
     if (!user?.id) {
-      console.error('User must be logged in to add items to cart');
-      return;
+      console.error('❌ User not logged in');
+      throw new Error('Please log in to add items to cart');
     }
 
-    if (!part || !part.id) {
-      console.error('Invalid part provided to cart.add');
-      return;
+    if (!part?.id) {
+      console.error('❌ Invalid part');
+      throw new Error('Invalid part data');
     }
 
-    if (qty <= 0) {
-      console.error('Quantity must be greater than 0');
-      return;
-    }
+    console.log('📞 Calling calculate_secure_pricing RPC...');
 
     try {
-      // Call our secure pricing function
       const { data: pricingData, error } = await supabase
         .rpc('calculate_secure_pricing', {
           part_id_input: part.id,
@@ -64,15 +62,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           quantity_input: qty
         });
 
-      if (error) {
-        console.error('Pricing calculation error:', error);
-        throw error;
-      }
+      console.log('📦 RPC response:', { pricingData, error });
 
-      if (!pricingData) {
-        console.error('No pricing data returned');
-        throw new Error('Failed to calculate pricing');
-      }
+      if (error) throw error;
+      if (!pricingData) throw new Error('No pricing data returned');
 
       const { unit_price, line_total } = pricingData;
 
@@ -87,17 +80,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           );
         }
         
-        // Create new cart item with safe defaults
         const newItem: CartItem = { 
           ...part, 
           quantity: qty, 
-          unit_price: typeof part.list_price === 'number' 
-            ? part.list_price 
-            : parseFloat(String(part.list_price || '0')), 
+          unit_price: typeof part.list_price === 'number' ? part.list_price : parseFloat(String(part.list_price || '0')), 
           discounted_price: unit_price, 
           line_total,
-          // Ensure required fields have safe defaults
-          id: part.id || '',
+          id: part.id,
           part_number: part.part_number || '',
           part_description: part.part_description || '',
           category: part.category || '',
@@ -110,9 +99,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         return [...prev, newItem];
       });
+
+      console.log('✅ Item added successfully');
     } catch (error) {
-      console.error('Failed to add item to cart:', error);
-      // You might want to show a user-friendly error message here
+      console.error('❌ Add to cart failed:', error);
+      throw error;
     }
   };
 
