@@ -108,7 +108,7 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
         >
           <ArrowLeft size={16} /> Back
         </button>
-        <div className="text-gray-700">We couldn't find that part.</div>
+        <div className="text-gray-700">We could not find that part.</div>
       </div>
     );
   }
