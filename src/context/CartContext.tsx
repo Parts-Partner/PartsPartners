@@ -4,6 +4,9 @@ import type { Part } from 'services/partsService';
 import { useAuth } from 'context/AuthContext';
 import { supabase } from 'services/supabaseClient';
 
+console.log('CartContext: supabase imported?', !!supabase);
+console.log('CartContext: supabase.rpc exists?', !!supabase?.rpc);
+
 export interface CartItem extends Part {
   quantity: number; 
   unit_price: number; 
