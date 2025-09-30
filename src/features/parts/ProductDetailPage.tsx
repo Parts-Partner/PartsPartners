@@ -42,9 +42,9 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
       setLoading(true);
       
       try {
-        // Use the Netlify function that already works for search
-        const url = `/.netlify/functions/get-part?id=${encodeURIComponent(partId)}`;
-        console.log('🔄 ProductDetailPage: Fetching from:', url);
+        // Use the search function that's already working
+        const url = `/.netlify/functions/search?q=&limit=1000`;
+        console.log('🔄 ProductDetailPage: Fetching all parts from search');
         
         const response = await fetch(url);
         console.log('📡 ProductDetailPage: Response status:', response.status);
@@ -54,9 +54,16 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
         }
         
         const result = await response.json();
-        console.log('📦 ProductDetailPage: Result:', result);
+        console.log('📦 ProductDetailPage: Got', result.data?.length, 'parts');
+        
+        // Find the specific part by ID
+        const foundPart = result.data?.find((p: any) => p.id === partId);
+        console.log('🎯 ProductDetailPage: Found part?', !!foundPart);
+        
+        const resultWithData = foundPart ? { data: foundPart } : { data: null };
+        console.log('📦 ProductDetailPage: Result:', resultWithData);
 
-        if (!result.data) {
+        if (!resultWithData.data) {
           console.warn('⚠️ ProductDetailPage: No part data in response');
           if (mounted) {
             setLoading(false);
@@ -66,18 +73,18 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
 
         if (mounted) {
           const part: Part = {
-            id: result.data.id,
-            part_number: result.data.part_number || '',
-            part_description: result.data.part_description || '',
-            category: result.data.category || '',
-            list_price: result.data.list_price || '0',
-            compatible_models: result.data.compatible_models || [],
-            image_url: result.data.image_url,
-            in_stock: Boolean(result.data.in_stock),
-            manufacturer_id: result.data.manufacturer_id || '',
-            make_part_number: result.data.make_part_number,
-            manufacturer_name: result.data.manufacturer_name || '',
-            make: result.data.make || ''
+            id: resultWithData.data.id,
+            part_number: resultWithData.data.part_number || '',
+            part_description: resultWithData.data.part_description || '',
+            category: resultWithData.data.category || '',
+            list_price: resultWithData.data.list_price || '0',
+            compatible_models: resultWithData.data.compatible_models || [],
+            image_url: resultWithData.data.image_url,
+            in_stock: Boolean(resultWithData.data.in_stock),
+            manufacturer_id: resultWithData.data.manufacturer_id || '',
+            make_part_number: resultWithData.data.make_part_number,
+            manufacturer_name: resultWithData.data.manufacturer_name || '',
+            make: resultWithData.data.make || ''
           };
           
           console.log('✅ ProductDetailPage: Setting product:', part);
