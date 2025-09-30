@@ -42,8 +42,9 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
       setLoading(true);
       
       try {
-        // Use the search function that's already working
-        const url = `/.netlify/functions/search?q=&limit=1000`;
+        // Use the search function with a minimal query to get all parts
+        // Use "00" as a search term since many parts have numbers
+        const url = `/.netlify/functions/search?q=00&limit=1000`;
         console.log('🔄 ProductDetailPage: Fetching all parts from search');
         
         const response = await fetch(url);
