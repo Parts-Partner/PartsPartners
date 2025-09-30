@@ -177,7 +177,11 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack, initialPartData })
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <button
-        onClick={onBack}
+        onClick={() => {
+          // Clear the cached part data
+          sessionStorage.removeItem(`part_${partId}`);
+          onBack();
+        }}
         className="mb-6 flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
       >
         <ArrowLeft size={16} /> Back to results
