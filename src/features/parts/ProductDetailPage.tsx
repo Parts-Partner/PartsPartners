@@ -36,6 +36,8 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
   );
 
   useEffect(() => {
+    let mounted = true;
+
     const fetchPart = async () => {
       setLoading(true);
       try {
@@ -48,7 +50,7 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
           .eq('id', partId)
           .single();
 
-        if (!error && data) {
+        if (!error && data && mounted) {
           const part: Part = {
             ...data,
             manufacturer_name: data.manufacturers?.manufacturer || '',
@@ -56,15 +58,24 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
           };
           setProduct(part);
         }
-      } catch (error) {
-        console.error('Error fetching part:', error);
+      } catch (err) {
+        if (mounted) {
+          console.error('Error fetching part:', err);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
       }
-      setLoading(false);
     };
 
     if (partId) {
       fetchPart();
     }
+
+    return () => {
+      mounted = false;
+    };
   }, [partId]);
 
   const unit = useMemo(() => {
