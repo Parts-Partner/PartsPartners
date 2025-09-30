@@ -35,35 +35,73 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
     [items, partId]
   );
 
-  useEffect(() => {
+useEffect(() => {
     let mounted = true;
 
     const fetchPart = async () => {
+      console.log('🔍 ProductDetailPage: Fetching part with ID:', partId);
       setLoading(true);
       try {
-        const { data, error } = await supabase
+        // First, get the part
+        const { data: partData, error: partError } = await supabase
           .from('parts')
-          .select(`
-            *,
-            manufacturers(id, manufacturer, make)
-          `)
+          .select('*')
           .eq('id', partId)
           .single();
 
-        if (!error && data && mounted) {
+        console.log('📦 ProductDetailPage: Part data:', { partData, partError });
+
+        if (partError) {
+          console.error('❌ ProductDetailPage: Part fetch error:', partError);
+          throw partError;
+        }
+
+        if (!partData) {
+          console.warn('⚠️ ProductDetailPage: No part found with ID:', partId);
+          if (mounted) {
+            setLoading(false);
+          }
+          return;
+        }
+
+        // Then get manufacturer info if available
+        let manufacturerName = '';
+        let make = '';
+        
+        if (partData.manufacturer_id) {
+          console.log('🔍 ProductDetailPage: Fetching manufacturer:', partData.manufacturer_id);
+          
+          const { data: mfgData, error: mfgError } = await supabase
+            .from('manufacturers')
+            .select('manufacturer, make')
+            .eq('id', partData.manufacturer_id)
+            .single();
+
+          console.log('📦 ProductDetailPage: Manufacturer data:', { mfgData, mfgError });
+
+          if (!mfgError && mfgData) {
+            manufacturerName = mfgData.manufacturer || '';
+            make = mfgData.make || '';
+          }
+        }
+
+        if (mounted) {
           const part: Part = {
-            ...data,
-            manufacturer_name: data.manufacturers?.manufacturer || '',
-            make: data.manufacturers?.make || ''
+            ...partData,
+            manufacturer_name: manufacturerName,
+            make: make
           };
+          
+          console.log('✅ ProductDetailPage: Setting product:', part);
           setProduct(part);
         }
       } catch (err) {
         if (mounted) {
-          console.error('Error fetching part:', err);
+          console.error('❌ ProductDetailPage: Error fetching part:', err);
         }
       } finally {
         if (mounted) {
+          console.log('🏁 ProductDetailPage: Loading complete');
           setLoading(false);
         }
       }
@@ -71,6 +109,9 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
 
     if (partId) {
       fetchPart();
+    } else {
+      console.warn('⚠️ ProductDetailPage: No partId provided');
+      setLoading(false);
     }
 
     return () => {
