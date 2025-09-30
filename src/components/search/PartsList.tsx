@@ -75,6 +75,9 @@ export const PartsList: React.FC<PartsListProps> = ({
   };
 
   const handleViewPart = (part: Part) => {
+    // Cache part data for detail page
+    sessionStorage.setItem(`part_${part.id}`, JSON.stringify(part));
+    
     if (onView) {
       onView(part);
     } else {

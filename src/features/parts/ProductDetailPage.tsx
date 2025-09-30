@@ -3,7 +3,11 @@ import { useCart } from 'context/CartContext';
 import { useAuth, type UserProfile } from 'context/AuthContext';
 import { ArrowLeft, ShoppingCart } from 'lucide-react';
 
-type Props = { partId: string; onBack: () => void };
+type Props = { 
+  partId: string; 
+  onBack: () => void;
+  initialPartData?: Part | null;
+};
 
 interface Part {
   id: string;
@@ -20,12 +24,12 @@ interface Part {
   make?: string;
 }
 
-const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
+const ProductDetailPage: React.FC<Props> = ({ partId, onBack, initialPartData }) => {
   const { add, updateQty, items } = useCart();
   const { profile } = useAuth();
 
-  const [product, setProduct] = useState<Part | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [product, setProduct] = useState<Part | null>(initialPartData || null);
+  const [loading, setLoading] = useState(!initialPartData);
   const [qty, setQty] = useState(1);
 
   const discountPct = (profile as UserProfile | null)?.discount_percentage || 0;
@@ -35,6 +39,26 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
   );
 
   useEffect(() => {
+    // Try to load from sessionStorage first
+    const cachedPart = sessionStorage.getItem(`part_${partId}`);
+    if (cachedPart) {
+      try {
+        const parsedPart = JSON.parse(cachedPart);
+        console.log('✅ ProductDetailPage: Using cached part data');
+        setProduct(parsedPart);
+        setLoading(false);
+        return;
+      } catch (e) {
+        console.warn('⚠️ Failed to parse cached part data');
+      }
+    }
+
+    // If we already have the part data, don't fetch
+    if (initialPartData) {
+      console.log('✅ ProductDetailPage: Using passed part data');
+      return;
+    }
+
     let mounted = true;
 
     const fetchPart = async () => {
@@ -113,7 +137,7 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
     return () => {
       mounted = false;
     };
-  }, [partId]);
+  }, [partId, initialPartData]);
 
   const unit = useMemo(() => {
     if (!product) return 0;
