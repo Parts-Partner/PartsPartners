@@ -1,6 +1,13 @@
-// src/components/search/PartsList.tsx - Corrected version
-import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Eye } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useCart } from 'context/CartContext';
+import { useAuth, type UserProfile } from 'context/AuthContext';
+import { ArrowLeft, ShoppingCart } from 'lucide-react';
+
+type Props = { 
+  partId: string; 
+  onBack: () => void;
+  initialPartData?: Part | null;
+};
 
 interface Part {
   id: string;
@@ -8,230 +15,279 @@ interface Part {
   part_description: string;
   category: string;
   list_price: string | number;
-  compatible_models: string[];
+  compatible_models: string[] | string;
   image_url?: string;
   in_stock: boolean;
   manufacturer_id: string;
   make_part_number?: string;
-  manufacturer_name: string;
-  make: string;
+  manufacturer_name?: string;
+  make?: string;
 }
 
-interface PartsListProps {
-  parts: Part[];
-  loading: boolean;
-  discountPct: number;
-  onAdd: (part: Part, qty?: number) => Promise<void>;
-  onUpdateQty: (id: string, qty: number) => Promise<void>;
-  getQty: (id: string) => number;
-  onView?: (part: Part) => void;
-}
+const ProductDetailPage: React.FC<Props> = ({ partId, onBack, initialPartData }) => {
+  const { add, updateQty, items } = useCart();
+  const { profile } = useAuth();
 
-export const PartsList: React.FC<PartsListProps> = ({
-  parts,
-  loading,
-  discountPct,
-  onAdd,
-  onUpdateQty,
-  getQty,
-  onView,
-}) => {
-  const [isClient, setIsClient] = useState(false);
+  const [product, setProduct] = useState<Part | null>(initialPartData || null);
+  const [loading, setLoading] = useState(!initialPartData);
+  const [qty, setQty] = useState(1);
+
+  const discountPct = (profile as UserProfile | null)?.discount_percentage || 0;
+  const inCartQty = useMemo(
+    () => items.find((i) => i.id === partId)?.quantity || 0,
+    [items, partId]
+  );
 
   useEffect(() => {
-    setIsClient(true);
-  }, []);
+    // Try to load from sessionStorage first
+    const cachedPart = sessionStorage.getItem(`part_${partId}`);
+    if (cachedPart) {
+      try {
+        const parsedPart = JSON.parse(cachedPart);
+        console.log('✅ ProductDetailPage: Using cached part data');
+        setProduct(parsedPart);
+        setLoading(false);
+        return;
+      } catch (e) {
+        console.warn('⚠️ Failed to parse cached part data');
+      }
+    }
 
-  if (loading || !isClient) {
+    // If we already have the part data, don't fetch
+    if (initialPartData) {
+      console.log('✅ ProductDetailPage: Using passed part data');
+      return;
+    }
+
+    let mounted = true;
+
+    const fetchPart = async () => {
+      console.log('🔍 ProductDetailPage: Fetching part with ID:', partId);
+      setLoading(true);
+      
+      try {
+        // Use the search function with a minimal query to get all parts
+        // Use "00" as a search term since many parts have numbers
+        const url = `/.netlify/functions/search?q=00&limit=1000`;
+        console.log('🔄 ProductDetailPage: Fetching all parts from search');
+        
+        const response = await fetch(url);
+        console.log('📡 ProductDetailPage: Response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('📦 ProductDetailPage: Got', result.data?.length, 'parts');
+        
+        // Find the specific part by ID
+        const foundPart = result.data?.find((p: any) => p.id === partId);
+        console.log('🎯 ProductDetailPage: Found part?', !!foundPart);
+        
+        const resultWithData = foundPart ? { data: foundPart } : { data: null };
+        console.log('📦 ProductDetailPage: Result:', resultWithData);
+
+        if (!resultWithData.data) {
+          console.warn('⚠️ ProductDetailPage: No part data in response');
+          if (mounted) {
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (mounted) {
+          const part: Part = {
+            id: resultWithData.data.id,
+            part_number: resultWithData.data.part_number || '',
+            part_description: resultWithData.data.part_description || '',
+            category: resultWithData.data.category || '',
+            list_price: resultWithData.data.list_price || '0',
+            compatible_models: resultWithData.data.compatible_models || [],
+            image_url: resultWithData.data.image_url,
+            in_stock: Boolean(resultWithData.data.in_stock),
+            manufacturer_id: resultWithData.data.manufacturer_id || '',
+            make_part_number: resultWithData.data.make_part_number,
+            manufacturer_name: resultWithData.data.manufacturer_name || '',
+            make: resultWithData.data.make || ''
+          };
+          
+          console.log('✅ ProductDetailPage: Setting product:', part);
+          setProduct(part);
+        }
+      } catch (err) {
+        if (mounted) {
+          console.error('❌ ProductDetailPage: Error fetching part:', err);
+        }
+      } finally {
+        if (mounted) {
+          console.log('🏁 ProductDetailPage: Loading complete');
+          setLoading(false);
+        }
+      }
+    };
+
+    if (partId) {
+      fetchPart();
+    } else {
+      console.warn('⚠️ ProductDetailPage: No partId provided');
+      setLoading(false);
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [partId, initialPartData]);
+
+  const unit = useMemo(() => {
+    if (!product) return 0;
+    const n = typeof product.list_price === 'number'
+      ? product.list_price
+      : parseFloat(String(product.list_price || 0));
+    return isNaN(n) ? 0 : n;
+  }, [product]);
+
+  const discounted = useMemo(
+    () => unit * (1 - discountPct / 100),
+    [unit, discountPct]
+  );
+
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600" />
       </div>
     );
   }
 
-  if (!parts || parts.length === 0) {
+  if (!product) {
     return (
-      <div className="text-center py-12">
-        <div className="text-gray-500">No parts found</div>
+      <div className="max-w-4xl mx-auto px-4 py-10 text-center">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
+        >
+          <ArrowLeft size={16} /> Back
+        </button>
+        <div className="text-gray-700">We could not find that part.</div>
       </div>
     );
   }
-
-  const handleAddToCart = async (part: Part, qty = 1) => {
-    try {
-      await onAdd(part, qty);
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-    }
-  };
-
-  const handleUpdateQty = async (partId: string, newQty: number) => {
-    try {
-      await onUpdateQty(partId, newQty);
-    } catch (error) {
-      console.error('Error updating quantity:', error);
-    }
-  };
-
-  const handleViewPart = (part: Part) => {
-    // Cache part data for detail page
-    sessionStorage.setItem(`part_${part.id}`, JSON.stringify(part));
-    
-    if (onView) {
-      onView(part);
-    } else {
-      // Dispatch the custom event that MainShell listens for
-      window.dispatchEvent(new CustomEvent('pp:viewPart', { 
-        detail: { id: part.id } 
-      }));
-    }
-  };
 
   return (
-    <div className="space-y-4">
-      {parts.map((part) => {
-        const currentQty = getQty(part.id);
-        const unitPrice = typeof part.list_price === 'string' 
-          ? parseFloat(part.list_price) || 0 
-          : Number(part.list_price) || 0;
-        const discountedPrice = unitPrice * (1 - (discountPct || 0) / 100);
-        const hasDiscount = discountPct > 0;
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <button
+        onClick={() => {
+          // Clear the cached part data
+          sessionStorage.removeItem(`part_${partId}`);
+          onBack();
+        }}
+        className="mb-6 flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+      >
+        <ArrowLeft size={16} /> Back to results
+      </button>
 
-        // Format manufacturer display
-        const manufacturerDisplay = part.manufacturer_name && part.make && part.manufacturer_name !== part.make
-          ? `${part.manufacturer_name} • ${part.make}`
-          : part.manufacturer_name || part.make || 'Unknown';
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white border rounded-2xl p-4 flex items-center justify-center">
+          <img
+            src={product.image_url || '/placeholder.png'}
+            alt={product.part_number}
+            className="max-h-[420px] object-contain"
+          />
+        </div>
 
-        return (
-          <div
-            key={part.id}
-            className="bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors p-6"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                {/* Part Number & Manufacturer */}
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900 truncate">
-                    {part.part_number}
-                  </h3>
-                  <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
-                    {manufacturerDisplay}
-                  </span>
-                  {!part.in_stock && (
-                    <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded">
-                      Out of Stock
-                    </span>
-                  )}
-                </div>
+        <div className="bg-white border rounded-2xl p-6 space-y-4">
+          <div>
+            <div className="text-xs text-gray-500">
+              {product.manufacturer_name}
+              {product.make && product.make !== product.manufacturer_name
+                ? ` • ${product.make}`
+                : ''}
+            </div>
+            <h1 className="text-2xl font-extrabold tracking-tight">
+              {product.part_number}
+            </h1>
+            <p className="text-gray-700">{product.part_description}</p>
+          </div>
 
-                {/* Description */}
-                <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                  {part.part_description}
-                </p>
-
-                {/* Compatible Models */}
-                {part.compatible_models && part.compatible_models.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-xs text-gray-500 mb-1">Compatible Models:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {part.compatible_models.slice(0, 3).map((model, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded"
-                        >
-                          {model}
-                        </span>
-                      ))}
-                      {part.compatible_models.length > 3 && (
-                        <span className="px-2 py-1 text-xs bg-gray-50 text-gray-500 rounded">
-                          +{part.compatible_models.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Make Part Number */}
-                {part.make_part_number && (
-                  <p className="text-xs text-gray-500">
-                    Mfg Part #: {part.make_part_number}
-                  </p>
-                )}
-              </div>
-
-              {/* Right side - Price and Actions */}
-              <div className="ml-6 flex flex-col items-end gap-3">
-                {/* Price */}
-                <div className="text-right">
-                  {hasDiscount ? (
-                    <>
-                      <div className="text-sm text-gray-500 line-through">
-                        ${unitPrice.toFixed(2)}
-                      </div>
-                      <div className="text-xl font-bold text-red-600">
-                        ${discountedPrice.toFixed(2)}
-                      </div>
-                      <div className="text-xs text-green-600 font-medium">
-                        {discountPct}% off
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-xl font-bold text-gray-900">
-                      ${unitPrice.toFixed(2)}
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleViewPart(part)}
-                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="View Details"
-                  >
-                    <Eye size={20} />
-                  </button>
-
-                  {/* Quantity Controls */}
-                  {currentQty > 0 ? (
-                    <div className="flex items-center gap-2 bg-red-50 rounded-lg p-1">
-                      <button
-                        onClick={() => handleUpdateQty(part.id, Math.max(0, currentQty - 1))}
-                        className="w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-100 rounded"
-                      >
-                        -
-                      </button>
-                      <span className="w-8 text-center font-semibold text-red-600">
-                        {currentQty}
-                      </span>
-                      <button
-                        onClick={() => handleUpdateQty(part.id, currentQty + 1)}
-                        className="w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-100 rounded"
-                      >
-                        +
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => handleAddToCart(part, 1)}
-                      disabled={!part.in_stock}
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors ${
-                        part.in_stock
-                          ? 'bg-red-600 hover:bg-red-700 text-white'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      <ShoppingCart size={16} />
-                      Add to Cart
-                    </button>
-                  )}
-                </div>
+          <div className="flex items-end gap-8">
+            <div>
+              <div className="text-xs text-gray-500">List</div>
+              <div className="text-gray-500 line-through">${unit.toFixed(2)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">Your price</div>
+              <div className="text-2xl font-bold text-green-700">
+                ${discounted.toFixed(2)}
               </div>
             </div>
+            <div className={`ml-auto text-sm font-medium ${
+              product.in_stock ? 'text-green-700' : 'text-gray-500'
+            }`}>
+              {product.in_stock ? 'In stock' : 'Backorder'}
+            </div>
           </div>
-        );
-      })}
+
+          <div className="flex items-center gap-3 pt-2">
+            <input
+              type="number"
+              min={1}
+              value={qty}
+              onChange={(e) => setQty(Math.max(1, parseInt(e.target.value || '1', 10)))}
+              className="w-24 px-3 py-2 border rounded-lg"
+              aria-label="Quantity"
+            />
+            {inCartQty > 0 ? (
+              <button
+                onClick={async () => {
+                  try {
+                    await updateQty(product.id, inCartQty + qty);
+                  } catch (error) {
+                    console.error('Error updating cart:', error);
+                  }
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-lg py-3 font-semibold inline-flex items-center justify-center gap-2"
+              >
+                <ShoppingCart size={18} /> Update Cart ({inCartQty})
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  try {
+                    await add(product as any, qty);
+                  } catch (error) {
+                    console.error('Error adding to cart:', error);
+                  }
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-lg py-3 font-semibold inline-flex items-center justify-center gap-2"
+              >
+                <ShoppingCart size={18} /> Add to Cart
+              </button>
+            )}
+          </div>
+
+          {product.compatible_models && (
+            <div className="pt-2">
+              <h3 className="font-semibold text-lg">Compatible Models</h3>
+              <ul className="list-disc list-inside text-gray-700">
+                {(Array.isArray(product.compatible_models)
+                  ? product.compatible_models
+                  : String(product.compatible_models).split(',').map((s) => s.trim())
+                ).map((m: string) => (
+                  <li key={m}>{m}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-12">
+        <h2 className="text-xl font-bold mb-3">Related Parts</h2>
+        <div className="text-gray-500">Coming soon…</div>
+      </div>
     </div>
   );
 };
+
+export default ProductDetailPage;

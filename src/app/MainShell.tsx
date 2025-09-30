@@ -250,7 +250,12 @@ const ShellInner: React.FC = () => {
         return selectedPartId ? (
           <ProductDetailPage
             partId={selectedPartId}
-            onBack={() => setPage('search')}
+            onBack={() => {
+              setSelectedPartId(null);
+              setPage('search');
+              // Keep search results visible by not resetting hasSearched
+              window.dispatchEvent(new CustomEvent('pp:returnToSearch'));
+            }}
           />
         ) : (
           <div className="max-w-4xl mx-auto px-4 py-10 text-center text-gray-600">
