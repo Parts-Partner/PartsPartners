@@ -1,6 +1,11 @@
 // src/services/supabaseClient.ts - Clean and reliable
 import { createClient } from '@supabase/supabase-js';
 
+console.log('ENV CHECK:', {
+  url: process.env.REACT_APP_SUPABASE_URL,
+  key: process.env.REACT_APP_SUPABASE_ANON_KEY?.substring(0, 20) + '...'
+});
+
 // Add global type for debugging
 declare global {
   interface Window {
