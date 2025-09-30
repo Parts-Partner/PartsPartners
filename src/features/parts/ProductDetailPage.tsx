@@ -239,12 +239,14 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack, initialPartData })
             />
             {inCartQty > 0 ? (
               <button
-                onClick={async () => {
-                  try {
-                    await updateQty(product.id, inCartQty + qty);
-                  } catch (error) {
-                    console.error('Error updating cart:', error);
-                  }
+                onClick={() => {
+                  console.log('🛒 Update Cart clicked');
+                  console.log('🛒 Product ID:', product.id);
+                  console.log('🛒 Current qty:', inCartQty, 'New qty:', inCartQty + qty);
+                  
+                  updateQty(product.id, inCartQty + qty)
+                    .then(() => console.log('✅ Cart updated'))
+                    .catch((error) => console.error('❌ Update cart error:', error));
                 }}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-lg py-3 font-semibold inline-flex items-center justify-center gap-2"
               >
@@ -252,12 +254,27 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack, initialPartData })
               </button>
             ) : (
               <button
-                onClick={async () => {
-                  try {
-                    await add(product as any, qty);
-                  } catch (error) {
-                    console.error('Error adding to cart:', error);
+                onClick={() => {
+                  console.log('🛒 Add to Cart clicked');
+                  console.log('🛒 Product:', product);
+                  console.log('🛒 Quantity:', qty);
+                  console.log('🛒 Add function exists?', typeof add);
+                  
+                  if (!product) {
+                    console.error('❌ No product data');
+                    alert('Error: No product data available');
+                    return;
                   }
+                  
+                  add(product as any, qty)
+                    .then(() => {
+                      console.log('✅ Successfully added to cart');
+                      alert('Added to cart!');
+                    })
+                    .catch((error) => {
+                      console.error('❌ Add to cart error:', error);
+                      alert('Error adding to cart: ' + error.message);
+                    });
                 }}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-lg py-3 font-semibold inline-flex items-center justify-center gap-2"
               >
