@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useCart } from 'context/CartContext';
 import { useAuth, type UserProfile } from 'context/AuthContext';
-import { supabase } from 'services/supabaseClient';
 import { ArrowLeft, ShoppingCart } from 'lucide-react';
 
 type Props = { partId: string; onBack: () => void };
@@ -35,84 +34,50 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack }) => {
     [items, partId]
   );
 
-useEffect(() => {
+  useEffect(() => {
     let mounted = true;
 
     const fetchPart = async () => {
-      // Normalize the UUID (trim whitespace, convert to lowercase)
-      const normalizedPartId = partId?.trim().toLowerCase();
-      
-      console.log('🔍 ProductDetailPage: Fetching part with ID:', normalizedPartId);
-      console.log('🔍 ProductDetailPage: Original partId:', partId);
-      
+      console.log('🔍 ProductDetailPage: Fetching part with ID:', partId);
       setLoading(true);
       
       try {
-        // First try: Direct query with normalized ID
-        let { data: partData, error: partError } = await supabase
-          .from('parts')
-          .select('*')
-          .eq('id', normalizedPartId)
-          .maybeSingle();
-
-        console.log('📦 ProductDetailPage: First attempt result:', { partData, partError });
-
-        // Second try: If no result, try with ilike for case-insensitive matching
-        if (!partData && !partError) {
-          console.log('🔄 ProductDetailPage: Trying case-insensitive search...');
-          const result = await supabase
-            .from('parts')
-            .select('*')
-            .ilike('id', normalizedPartId)
-            .limit(1)
-            .single();
-          
-          partData = result.data;
-          partError = result.error;
-          console.log('📦 ProductDetailPage: Second attempt result:', { partData, partError });
+        // Use the Netlify function that already works for search
+        const url = `/.netlify/functions/get-part?id=${encodeURIComponent(partId)}`;
+        console.log('🔄 ProductDetailPage: Fetching from:', url);
+        
+        const response = await fetch(url);
+        console.log('📡 ProductDetailPage: Response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
+        
+        const result = await response.json();
+        console.log('📦 ProductDetailPage: Result:', result);
 
-        console.log('📦 ProductDetailPage: Final part data:', { partData, partError });
-
-        if (partError) {
-          console.error('❌ ProductDetailPage: Part fetch error:', partError);
-          throw partError;
-        }
-
-        if (!partData) {
-          console.warn('⚠️ ProductDetailPage: No part found with ID:', partId);
+        if (!result.data) {
+          console.warn('⚠️ ProductDetailPage: No part data in response');
           if (mounted) {
             setLoading(false);
           }
           return;
         }
 
-        // Then get manufacturer info if available
-        let manufacturerName = '';
-        let make = '';
-        
-        if (partData.manufacturer_id) {
-          console.log('🔍 ProductDetailPage: Fetching manufacturer:', partData.manufacturer_id);
-          
-          const { data: mfgData, error: mfgError } = await supabase
-            .from('manufacturers')
-            .select('manufacturer, make')
-            .eq('id', partData.manufacturer_id)
-            .single();
-
-          console.log('📦 ProductDetailPage: Manufacturer data:', { mfgData, mfgError });
-
-          if (!mfgError && mfgData) {
-            manufacturerName = mfgData.manufacturer || '';
-            make = mfgData.make || '';
-          }
-        }
-
         if (mounted) {
           const part: Part = {
-            ...partData,
-            manufacturer_name: manufacturerName,
-            make: make
+            id: result.data.id,
+            part_number: result.data.part_number || '',
+            part_description: result.data.part_description || '',
+            category: result.data.category || '',
+            list_price: result.data.list_price || '0',
+            compatible_models: result.data.compatible_models || [],
+            image_url: result.data.image_url,
+            in_stock: Boolean(result.data.in_stock),
+            manufacturer_id: result.data.manufacturer_id || '',
+            make_part_number: result.data.make_part_number,
+            manufacturer_name: result.data.manufacturer_name || '',
+            make: result.data.make || ''
           };
           
           console.log('✅ ProductDetailPage: Setting product:', part);
