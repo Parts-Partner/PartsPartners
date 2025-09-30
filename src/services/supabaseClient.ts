@@ -66,7 +66,8 @@ if (process.env.NODE_ENV === 'development' && SUPABASE_URL && SUPABASE_ANON_KEY)
     });
 }
 
-// Add to window for debugging (development only)
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+// Add to window for debugging
+if (typeof window !== 'undefined') {
   window.supabase = supabase;
+  console.log('✅ Supabase client attached to window');
 }
