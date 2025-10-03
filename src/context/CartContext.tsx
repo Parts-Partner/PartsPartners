@@ -40,32 +40,40 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [items, setItems] = useState<CartItem[]>([]);
 
   const add = async (part: Part, qty = 1): Promise<void> => {
-    console.log('🛒 CartContext: add() called', { partId: part.id, qty, hasUser: !!user?.id });
+    console.log('CartContext: add() called', { partId: part.id, qty, hasUser: !!user?.id });
     
     if (!user?.id) {
-      console.error('❌ User not logged in');
+      console.error('User not logged in');
       throw new Error('Please log in to add items to cart');
     }
 
     if (!part?.id) {
-      console.error('❌ Invalid part');
+      console.error('Invalid part');
       throw new Error('Invalid part data');
     }
 
-    console.log('📞 Calling calculate_secure_pricing RPC...');
+    console.log('Calling cart-pricing function...');
 
     try {
-      const { data: pricingData, error } = await supabase
-        .rpc('calculate_secure_pricing', {
-          part_id_input: part.id,
-          user_id_input: user.id,
-          quantity_input: qty
-        });
+      const response = await fetch('/.netlify/functions/cart-pricing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partId: part.id,
+          userId: user.id,
+          quantity: qty
+        })
+      });
 
-      console.log('📦 RPC response:', { pricingData, error });
+      console.log('Response status:', response.status);
 
-      if (error) throw error;
-      if (!pricingData) throw new Error('No pricing data returned');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const { data: pricingData } = await response.json();
+      console.log('Pricing data received:', pricingData);
 
       const { unit_price, line_total } = pricingData;
 
@@ -100,9 +108,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return [...prev, newItem];
       });
 
-      console.log('✅ Item added successfully');
+      console.log('Item added to cart successfully');
     } catch (error) {
-      console.error('❌ Add to cart failed:', error);
+      console.error('Failed to add to cart:', error);
       throw error;
     }
   };
