@@ -106,7 +106,8 @@ export const PartsList: React.FC<PartsListProps> = ({
         return (
           <div
             key={part.id}
-            className="bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors p-6"
+            onClick={() => handleViewPart(part)}
+            className="bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors p-6 cursor-pointer"
           >
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
@@ -185,19 +186,14 @@ export const PartsList: React.FC<PartsListProps> = ({
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleViewPart(part)}
-                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="View Details"
-                  >
-                    <Eye size={20} />
-                  </button>
-
                   {/* Quantity Controls */}
                   {currentQty > 0 ? (
                     <div className="flex items-center gap-2 bg-red-50 rounded-lg p-1">
                       <button
-                        onClick={() => handleUpdateQty(part.id, Math.max(0, currentQty - 1))}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateQty(part.id, Math.max(0, currentQty - 1));
+                        }}
                         className="w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-100 rounded"
                       >
                         -
@@ -206,7 +202,10 @@ export const PartsList: React.FC<PartsListProps> = ({
                         {currentQty}
                       </span>
                       <button
-                        onClick={() => handleUpdateQty(part.id, currentQty + 1)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateQty(part.id, currentQty + 1);
+                        }}
                         className="w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-100 rounded"
                       >
                         +
@@ -214,7 +213,10 @@ export const PartsList: React.FC<PartsListProps> = ({
                     </div>
                   ) : (
                     <button
-                      onClick={() => handleAddToCart(part, 1)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddToCart(part, 1);
+                      }}
                       disabled={!part.in_stock}
                       className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors ${
                         part.in_stock
