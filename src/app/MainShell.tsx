@@ -253,8 +253,6 @@ const ShellInner: React.FC = () => {
             onBack={() => {
               setSelectedPartId(null);
               setPage('search');
-              // Keep search results visible by not resetting hasSearched
-              window.dispatchEvent(new CustomEvent('pp:returnToSearch'));
             }}
           />
         ) : (
