@@ -23,6 +23,7 @@ import ProfilePage from './ProfilePage';
 import LoginPage from './auth/LoginPage';
 import ErrorBoundary from 'components/ErrorBoundary';
 import OrderConfirmation from 'components/OrderConfirmation';
+import { CookieConsent } from 'components/CookieConsent';
 
 // Create React Query client with simplified settings
 const queryClient = new QueryClient({
@@ -277,6 +278,7 @@ const ShellInner: React.FC = () => {
       <main className={`flex-1 ${showHeaderFooter ? 'bg-gradient-to-br from-slate-50 to-sky-50' : ''}`}>
         {body()}
       </main>
+      <CookieConsent />
       
       {/* Show Footer only for non-minimal pages */}
       {showHeaderFooter && <Footer onNav={nav} />}
