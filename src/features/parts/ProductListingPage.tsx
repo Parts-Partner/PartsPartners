@@ -34,6 +34,20 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
   const [category, setCategory] = useState('all');
   const [manufacturerId, setManufacturerId] = useState('all');
   const [hasSearched, setHasSearched] = useState(false);
+  // Persist hasSearched state when navigating away
+  useEffect(() => {
+    if (hasSearched) {
+      sessionStorage.setItem('hasSearched', 'true');
+    }
+  }, [hasSearched]);
+
+  // Restore hasSearched on component mount
+  useEffect(() => {
+    const wasSearching = sessionStorage.getItem('hasSearched');
+    if (wasSearching === 'true' && !hasSearched) {
+      setHasSearched(true);
+    }
+  }, []);
   
   // Sidebar filter state
   const [sidebarFilter, setSidebarFilter] = useState('');
