@@ -38,6 +38,7 @@ type Address = {
   zip_code: string;
   country: string;
   is_default?: boolean;
+  type?: "shipping" | "billing";
 };
 
 type PaymentMethod = {
@@ -139,15 +140,21 @@ const EditProfileModal: React.FC<{
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
-      const { error: profileError } = await supabase.from("profiles").upsert({
-        id: user.id,
-        full_name: form.full_name,
-        phone: form.phone || null,
-        company_name: form.company_name || null,
-        avatar_url: form.avatar_url || null,
-        updated_at: new Date().toISOString(),
+      const response = await fetch('/.netlify/functions/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          profile: {
+            full_name: form.full_name,
+            phone: form.phone || null,
+            company_name: form.company_name || null,
+            avatar_url: form.avatar_url || null
+          }
+        })
       });
-      if (profileError) throw profileError;
+
+      if (!response.ok) throw new Error('Failed to update profile');
 
       const { error: authError } = await supabase.auth.updateUser({
         data: {
@@ -327,27 +334,20 @@ const AddressModal: React.FC<{
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
-      // Avoid unique-default conflicts: clear previous default for this type
-      const { error: unsetErr } = await supabase
-        .from("addresses")
-        .update({ is_default: false })
-        .eq("user_id", user.id)
-        .eq("type", type);
-      if (unsetErr) throw unsetErr;
+      const response = await fetch('/.netlify/functions/save-address', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          address: form,
+          type: type,
+          addressId: address?.id || null
+        })
+      });
 
-      const payload = {
-        ...form,
-        user_id: user.id,
-        type,
-        is_default: true,
-      };
-
-      if (address?.id) {
-        const { error } = await supabase.from("addresses").update(payload).eq("id", address.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("addresses").insert(payload);
-        if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save address');
       }
 
       onSaved();
@@ -524,17 +524,22 @@ const ProfilePage: React.FC<Props> = ({ onNav }) => {
 
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from("addresses")
-          .select("*")
-          .eq("user_id", user.id);
-        if (error) throw error;
-
+        const response = await fetch('/.netlify/functions/profile-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id })
+        });
+        
+        if (!response.ok) throw new Error('Failed to load profile data');
+        
+        const { addresses } = await response.json();
+        
         if (!alive) return;
-        const ship = data?.find((a) => a.type === "shipping" && a.is_default) || null;
-        const bill = data?.find((a) => a.type === "billing" && a.is_default) || null;
+        const ship = addresses?.find((a: Address) => a.type === "shipping" && a.is_default) || null;
+        const bill = addresses?.find((a: Address) => a.type === "billing" && a.is_default) || null;
         setShippingAddress(ship);
         setBillingAddress(bill);
+
       } catch (e: any) {
         if (alive) {
           setAddrError(e?.message || "Could not load addresses");
@@ -552,77 +557,48 @@ const ProfilePage: React.FC<Props> = ({ onNav }) => {
   }, [user?.id]);
 
   // Load payment methods (try payment_methods, then payments)
-  useEffect(() => {
-    let alive = true;
-    setPayError("");
-    setLoadingPayments(true);
+// Load payment methods
+useEffect(() => {
+  let alive = true;
+  setPayError("");
+  setLoadingPayments(true);
 
-    if (!user?.id) {
-      setLoadingPayments(false);
-      return () => { alive = false; };
-    }
+  if (!user?.id) {
+    setLoadingPayments(false);
+    return () => { alive = false; };
+  }
 
-    (async () => {
-      const mapped: PaymentMethod[] = [];
-      try {
-        // Try payment_methods
-        const { data, error } = await supabase
-          .from("payment_methods")
-          .select("id, brand, last4, exp_month, exp_year, is_default")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-        if (!error && data) {
-          for (const pm of data as any[]) {
-            mapped.push({
-              id: pm.id,
-              brand: pm.brand || "card",
-              last4: pm.last4 || "0000",
-              exp_month: pm.exp_month || 1,
-              exp_year: pm.exp_year || 2000,
-              is_default: !!pm.is_default,
-            });
-          }
-        }
-      } catch (_) {
-        // ignore; we'll try the other table
-      }
-
-      if (mapped.length === 0) {
-        try {
-          // Fallback: payments (mirror)
-          const { data, error } = await supabase
-            .from("payments")
-            .select("id, brand, last4, exp_month, exp_year, is_default")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false });
-          if (error) throw error;
-          for (const pm of (data || []) as any[]) {
-            mapped.push({
-              id: pm.id,
-              brand: pm.brand || "card",
-              last4: pm.last4 || "0000",
-              exp_month: pm.exp_month || 1,
-              exp_year: pm.exp_year || 2000,
-              is_default: !!pm.is_default,
-            });
-          }
-        } catch (e: any) {
-          if (alive) setPayError(e?.message || "Could not load payment methods");
-        }
-      }
-
+  (async () => {
+    try {
+      const response = await fetch('/.netlify/functions/profile-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      });
+      
+      if (!response.ok) throw new Error('Failed to load profile data');
+      
+      const { paymentMethods } = await response.json();
+      
       if (alive) {
-        setPaymentMethods(mapped);
+        setPaymentMethods(paymentMethods || []);
         setLoadingPayments(false);
       }
-    })();
+    } catch (e: any) {
+      if (alive) {
+        setPayError(e?.message || "Could not load payment methods");
+        setPaymentMethods([]);
+        setLoadingPayments(false);
+      }
+    }
+  })();
 
-    return () => {
-      alive = false;
-    };
-  }, [user?.id]);
+  return () => {
+    alive = false;
+  };
+}, [user?.id]);
 
-  // Load orders (try user_id, then profile_id, then customer_id)
+  // Load orders
   useEffect(() => {
     let alive = true;
     setOrdersError("");
@@ -634,34 +610,28 @@ const ProfilePage: React.FC<Props> = ({ onNav }) => {
       return () => { alive = false; };
     }
 
-    const tryFetch = async (ownerColumn: string) => {
-      return await supabase
-        .from("purchase_orders")
-        .select("id, po_number, created_at, total_amount, status, payment_status")
-        .eq(ownerColumn, user.id)
-        .order("created_at", { ascending: false })
-        .limit(10);
-    };
-
     (async () => {
       try {
-        let resp = await tryFetch("user_id");
-        if (resp.error && /column .* does not exist/i.test(resp.error.message)) {
-          resp = await tryFetch("profile_id");
+        const response = await fetch('/.netlify/functions/profile-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id })
+        });
+        
+        if (!response.ok) throw new Error('Failed to load profile data');
+        
+        const { orders } = await response.json();
+        
+        if (alive) {
+          setOrders(orders || []);
+          setLoadingOrders(false);
         }
-        if (resp.error && /column .* does not exist/i.test(resp.error.message)) {
-          resp = await tryFetch("customer_id");
-        }
-        if (resp.error) throw resp.error;
-
-        if (alive) setOrders(resp.data || []);
       } catch (e: any) {
         if (alive) {
           setOrdersError(e?.message || "Could not load orders");
           setOrders([]);
+          setLoadingOrders(false);
         }
-      } finally {
-        if (alive) setLoadingOrders(false);
       }
     })();
 
@@ -684,36 +654,41 @@ const ProfilePage: React.FC<Props> = ({ onNav }) => {
   const refreshAddresses = async () => {
     if (!user?.id) return;
     try {
-      const { data, error } = await supabase.from("addresses").select("*").eq("user_id", user.id);
-      if (error) throw error;
-
-      const ship = data?.find((a) => a.type === "shipping" && a.is_default) || null;
-      const bill = data?.find((a) => a.type === "billing" && a.is_default) || null;
+      const response = await fetch('/.netlify/functions/profile-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      });
+      
+      if (!response.ok) throw new Error('Failed to refresh addresses');
+      
+      const { addresses } = await response.json();
+            
+      const ship = addresses?.find((a: Address) => a.type === "shipping" && a.is_default) || null;
+      const bill = addresses?.find((a: Address) => a.type === "billing" && a.is_default) || null;
       setShippingAddress(ship);
       setBillingAddress(bill);
     } catch (e) {
-      // already surfaced via loaders when it happens during page load
+      console.error("Error refreshing addresses:", e);
     }
   };
 
   const refreshProfile = async () => {
     if (!user?.id) return;
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (!error && data) {
-        setUserProfile({
-          full_name: data.full_name || "",
-          phone: data.phone || "",
-          company_name: data.company_name || "",
-          avatar_url: data.avatar_url || "",
-        });
-      }
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+      
+      // Profile data is in user metadata after update
+      setUserProfile({
+        full_name: authUser.user_metadata?.full_name || "",
+        phone: authUser.user_metadata?.phone || "",
+        company_name: authUser.user_metadata?.company_name || "",
+        avatar_url: authUser.user_metadata?.avatar_url || "",
+      });
     } catch (err) {
-    console.error("Error refreshing profile:", err);}
+      console.error("Error refreshing profile:", err);
+    }
   };
 
   if (!user) return <LoginPrompt onNav={onNav} />;
