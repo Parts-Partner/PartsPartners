@@ -295,14 +295,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => { 
     try {
-      console.log('🔄 AuthProvider: Logging out user');
-      await supabase.auth.signOut(); 
-      console.log('✅ AuthProvider: Logout completed');
-    } catch (error) {
-      console.error('❌ AuthProvider: Logout error:', error);
-      // Still clear local state even if signOut fails
+      console.log('Logging out user');
+      
+      // Clear session storage
+      sessionStorage.clear();
+      
+      // Clear local state immediately
       setUser(null);
       setProfile(null);
+      
+      // Try to call Supabase signOut with timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Logout timeout')), 2000)
+      );
+      
+      const signOutPromise = supabase.auth.signOut();
+      
+      try {
+        await Promise.race([signOutPromise, timeoutPromise]);
+        console.log('Supabase signOut successful');
+      } catch (err) {
+        console.warn('Supabase signOut timed out, but local session cleared');
+      }
+      
+      // Force reload to clear any cached state
+      window.location.href = '/';
+      
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still clear local state and reload even if there's an error
+      setUser(null);
+      setProfile(null);
+      window.location.href = '/';
     }
   };
 
