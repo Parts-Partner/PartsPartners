@@ -190,9 +190,12 @@ const ProductDetailPage: React.FC<Props> = ({ partId, onBack, initialPartData })
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white border rounded-2xl p-4 flex items-center justify-center">
           <img
-            src={product.image_url || '/placeholder.png'}
+            src={product.image_url || 'https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/public/assets/No_Product_Image_Filler.png'}
             alt={product.part_number}
             className="max-h-[420px] object-contain"
+            onError={(e) => {
+              e.currentTarget.src = 'https://xarnvryaicseavgnmtjn.supabase.co/storage/v1/object/public/assets/No_Product_Image_Filler.png';
+            }}
           />
         </div>
 
