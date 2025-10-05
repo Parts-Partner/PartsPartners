@@ -29,17 +29,19 @@ export const ProductListingPage: React.FC<ProductListingPageProps> = ({ onNav })
   const { add, updateQty, items } = useCart();
   const { profile } = useAuth();
 
-  // Search state
-  const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('all');
-  const [manufacturerId, setManufacturerId] = useState('all');
-  const [hasSearched, setHasSearched] = useState(false);
-  // Persist hasSearched state when navigating away
+  const [query, setQuery] = useState(() => sessionStorage.getItem('searchQuery') || '');
+  const [category, setCategory] = useState(() => sessionStorage.getItem('searchCategory') || 'all');
+  const [manufacturerId, setManufacturerId] = useState(() => sessionStorage.getItem('searchManufacturer') || 'all');
+  const [hasSearched, setHasSearched] = useState(() => sessionStorage.getItem('hasSearched') === 'true');
+  // Persist search state when it changes
   useEffect(() => {
     if (hasSearched) {
       sessionStorage.setItem('hasSearched', 'true');
+      sessionStorage.setItem('searchQuery', query);
+      sessionStorage.setItem('searchCategory', category);
+      sessionStorage.setItem('searchManufacturer', manufacturerId);
     }
-  }, [hasSearched]);
+  }, [hasSearched, query, category, manufacturerId]);
 
   // Restore hasSearched on component mount
   useEffect(() => {
