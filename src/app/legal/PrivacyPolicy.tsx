@@ -1,7 +1,11 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 
-const PrivacyPolicy: React.FC<{ onBack: () => void }> = ({ onBack }) => (
+interface PrivacyPolicyProps {
+  onBack: () => void;
+}
+
+const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => (
   <div className="min-h-screen bg-gradient-to-br from-slate-50 to-sky-50 py-8">
     <div className="max-w-4xl mx-auto px-4">
       <div className="bg-white border rounded-2xl shadow-sm p-8">
@@ -19,7 +23,7 @@ const PrivacyPolicy: React.FC<{ onBack: () => void }> = ({ onBack }) => (
           <section>
             <h2 className="text-xl font-semibold mb-3">Introduction</h2>
             <p>
-              Parts Partners ("we," "our," or "us") respects your privacy. This Privacy Policy explains how we collect, 
+              Parts Partners (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;) respects your privacy. This Privacy Policy explains how we collect, 
               use, disclose, and safeguard your information when you visit our website and use our services.
             </p>
           </section>

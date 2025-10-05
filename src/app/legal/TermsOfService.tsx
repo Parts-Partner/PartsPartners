@@ -1,7 +1,11 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 
-const TermsOfService: React.FC<{ onBack: () => void }> = ({ onBack }) => (
+interface TermsOfServiceProps {
+  onBack: () => void;
+}
+
+const TermsOfService: React.FC<TermsOfServiceProps> = ({ onBack }) => (
   <div className="min-h-screen bg-gradient-to-br from-slate-50 to-sky-50 py-8">
     <div className="max-w-4xl mx-auto px-4">
       <div className="bg-white border rounded-2xl shadow-sm p-8">
@@ -19,7 +23,7 @@ const TermsOfService: React.FC<{ onBack: () => void }> = ({ onBack }) => (
           <section>
             <h2 className="text-xl font-semibold mb-3">Agreement to Terms</h2>
             <p>
-              By accessing or using Parts Partners' website and services, you agree to be bound by these Terms of Service. 
+              By accessing or using Parts Partners&apos; website and services, you agree to be bound by these Terms of Service. 
               If you do not agree to these terms, please do not use our services.
             </p>
           </section>
@@ -86,7 +90,7 @@ const TermsOfService: React.FC<{ onBack: () => void }> = ({ onBack }) => (
           <section>
             <h2 className="text-xl font-semibold mb-3">Disclaimer of Warranties</h2>
             <p>
-              Our services are provided "as is" without warranties of any kind, either express or implied. We do not 
+              Our services are provided &quot;as is&quot; without warranties of any kind, either express or implied. We do not 
               warrant that our services will be uninterrupted, error-free, or secure.
             </p>
           </section>

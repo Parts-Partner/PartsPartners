@@ -1,7 +1,11 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 
-const ShippingPolicy: React.FC<{ onBack: () => void }> = ({ onBack }) => (
+interface ShippingPolicyProps {
+  onBack: () => void;
+}
+
+const ShippingPolicy: React.FC<ShippingPolicyProps> = ({ onBack }) => (
   <div className="min-h-screen bg-gradient-to-br from-slate-50 to-sky-50 py-8">
     <div className="max-w-4xl mx-auto px-4">
       <div className="bg-white border rounded-2xl shadow-sm p-8">
@@ -55,7 +59,7 @@ const ShippingPolicy: React.FC<{ onBack: () => void }> = ({ onBack }) => (
             <h2 className="text-xl font-semibold mb-3">Tracking</h2>
             <p>
               You will receive a tracking number via email once your order ships. You can use this number to track 
-              your package on the carrier's website.
+              your package on the carrier&apos;s website.
             </p>
           </section>
 
