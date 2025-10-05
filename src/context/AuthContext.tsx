@@ -297,33 +297,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Logging out user');
       
-      // Clear session storage
+      // Clear all auth-related storage
       sessionStorage.clear();
+      localStorage.removeItem('supabase.auth.token');
       
-      // Clear local state immediately
+      // Clear all Supabase keys from localStorage
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-')) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      // Clear local state
       setUser(null);
       setProfile(null);
       
-      // Try to call Supabase signOut with timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Logout timeout')), 2000)
-      );
-      
-      const signOutPromise = supabase.auth.signOut();
-      
-      try {
-        await Promise.race([signOutPromise, timeoutPromise]);
-        console.log('Supabase signOut successful');
-      } catch (err) {
-        console.warn('Supabase signOut timed out, but local session cleared');
-      }
-      
-      // Force reload to clear any cached state
+      // Don't even try Supabase signOut since it doesn't work
+      // Just reload to login page
       window.location.href = '/';
       
     } catch (error) {
       console.error('Logout error:', error);
-      // Still clear local state and reload even if there's an error
       setUser(null);
       setProfile(null);
       window.location.href = '/';
