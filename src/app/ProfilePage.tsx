@@ -133,13 +133,17 @@ const EditProfileModal: React.FC<{
   };
 
   const save = async () => {
+    console.log('🟢 SAVE STARTED');
     setSaving(true);
     setError("");
 
     try {
+      console.log('📍 Getting user...');
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
+      console.log('✅ User:', user.id);
 
+      console.log('📡 Calling update-profile...');
       const response = await fetch('/.netlify/functions/update-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -153,8 +157,15 @@ const EditProfileModal: React.FC<{
           }
         })
       });
+      console.log('📡 Response status:', response.status);
 
-      if (!response.ok) throw new Error('Failed to update profile');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Response error:', errorText);
+        throw new Error('Failed to update profile');
+      }
+
+      console.log('✅ Profile updated');
 
       const { error: authError } = await supabase.auth.updateUser({
         data: {
