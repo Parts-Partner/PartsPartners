@@ -352,7 +352,7 @@ const LoginPage: React.FC<Props> = ({ onNav }) => {
     try {
       if (activeTab === 'login') {
         await login(formData.email, formData.password);
-        onNav('search');
+        onNav('home');
       } else {
         // Registration - call signup with proper parameters
         await signup(
@@ -402,7 +402,7 @@ const LoginPage: React.FC<Props> = ({ onNav }) => {
         isServiceCompany={registeredAsServiceCompany}
         onConfirmed={() => {
           setShowEmailConfirmation(false);
-          onNav('search');
+          onNav('home');
         }}
         onBack={() => {
           setShowEmailConfirmation(false);
@@ -853,7 +853,7 @@ const LoginPage: React.FC<Props> = ({ onNav }) => {
                 <div className="text-center pt-4">
                   <button
                     type="button"
-                    onClick={() => onNav('search')}
+                    onClick={() => onNav('home')}
                     className="text-slate-600 hover:text-slate-900 font-medium text-sm transition-colors"
                   >
                     Continue as Guest

@@ -328,6 +328,7 @@ const AddressModal: React.FC<{
   }, [open, address]);
 
   const save = async () => {
+    console.log('🔥 SAVE FUNCTION CALLED'); // ADD THIS LINE
     setSaving(true);
     setError("");
     try {
