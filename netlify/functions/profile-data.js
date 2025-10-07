@@ -1,8 +1,8 @@
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 exports.handler = async (event) => {
   const headers = {
@@ -18,6 +18,8 @@ exports.handler = async (event) => {
   try {
     const { userId } = JSON.parse(event.body || '{}');
 
+    console.log('🔍 Profile-data function called with userId:', userId);
+
     if (!userId) {
       return {
         statusCode: 400,
@@ -27,10 +29,13 @@ exports.handler = async (event) => {
     }
 
     // Fetch addresses
+    console.log('📍 Fetching addresses...');
     const { data: addresses, error: addrError } = await supabase
       .from('addresses')
       .select('*')
       .eq('user_id', userId);
+
+    console.log('📍 Addresses result:', { count: addresses?.length, error: addrError });
 
     // Fetch payment methods
     let paymentMethods = [];
