@@ -139,7 +139,17 @@ const EditProfileModal: React.FC<{
 
     try {
       console.log('📍 Getting user...');
-      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Add timeout to auth call
+      const userPromise = supabase.auth.getUser();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Auth timeout')), 5000)
+      );
+
+      
+
+      const { data: { user } } = await Promise.race([userPromise, timeoutPromise]) as any;
+      
       if (!user) throw new Error("User not authenticated");
       console.log('✅ User:', user.id);
 
