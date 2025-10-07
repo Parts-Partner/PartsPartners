@@ -80,9 +80,10 @@ const EmptyState: React.FC<{ title: string; hint?: string; action?: React.ReactN
 const EditProfileModal: React.FC<{
   open: boolean;
   initial: EditableProfile;
+  user: any;
   onClose: () => void;
   onSaved: (next: EditableProfile) => void;
-}> = ({ open, initial, onClose, onSaved }) => {
+}> = ({ open, initial, user, onClose, onSaved }) => {
   const [form, setForm] = useState<EditableProfile>(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -138,19 +139,7 @@ const EditProfileModal: React.FC<{
     setError("");
 
     try {
-      console.log('📍 Getting user...');
-      
-      // Add timeout to auth call
-      const userPromise = supabase.auth.getUser();
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Auth timeout')), 5000)
-      );
-
-      
-
-      const { data: { user } } = await Promise.race([userPromise, timeoutPromise]) as any;
-      
-      if (!user) throw new Error("User not authenticated");
+      if (!user?.id) throw new Error("User not authenticated");
       console.log('✅ User:', user.id);
 
       console.log('📡 Calling update-profile...');
@@ -167,17 +156,14 @@ const EditProfileModal: React.FC<{
           }
         })
       });
+      
       console.log('📡 Response status:', response.status);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Response error:', errorText);
-        throw new Error('Failed to update profile');
-      }
-
+      if (!response.ok) throw new Error('Failed to update profile');
       console.log('✅ Profile updated');
 
-      const { error: authError } = await supabase.auth.updateUser({
+      // Update auth metadata
+      await supabase.auth.updateUser({
         data: {
           full_name: form.full_name,
           phone: form.phone || "",
@@ -185,13 +171,14 @@ const EditProfileModal: React.FC<{
           avatar_url: form.avatar_url || "",
         },
       });
-      if (authError) throw authError;
 
       onSaved(form);
       onClose();
     } catch (e: any) {
+      console.error('❌ Save error:', e);
       setError(e?.message || "Failed to save profile");
     } finally {
+      console.log('🏁 Save complete');
       setSaving(false);
     }
   };
@@ -1015,6 +1002,7 @@ useEffect(() => {
       <EditProfileModal
         open={editOpen}
         initial={userProfile}
+        user={user}
         onClose={() => setEditOpen(false)}
         onSaved={async (updated) => {
           setUserProfile(updated); // optimistic
