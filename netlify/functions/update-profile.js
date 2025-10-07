@@ -26,10 +26,18 @@ exports.handler = async (event) => {
       };
     }
 
+    // First, get the user's email
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', userId)
+      .single();
+
     const { error } = await supabase
       .from('profiles')
       .upsert({
         id: userId,
+        email: existingProfile?.email, // ADD THIS - preserve existing email
         full_name: profile.full_name,
         phone: profile.phone || null,
         company_name: profile.company_name || null,
